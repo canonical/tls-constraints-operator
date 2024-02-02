@@ -9,9 +9,12 @@ Certificates are provided by the operator trough Juju configs.
 
 import logging
 
-from ops.charm import CharmBase, InstallEvent
+from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
+    TLSCertificatesRequiresV2,
+)
+from ops.charm import CharmBase, EventBase
 from ops.main import main
-from ops.model import ActiveStatus
+from ops.model import ActiveStatus, BlockedStatus
 
 logger = logging.getLogger(__name__)
 
@@ -22,19 +25,26 @@ class TLSConstraintsCharm(CharmBase):
     def __init__(self, *args):
         """Observes config change and certificate request events."""
         super().__init__(*args)
-        self.framework.observe(self.on.install, self._on_install)
+        self.certificates_provider = TLSCertificatesRequiresV2(self, "certificates-provider")
+        self.framework.observe(self.on.install, self._update_status)
+        self.framework.observe(self.on.update_status, self._update_status)
+        self.framework.observe(self.on.certificates_provider_relation_joined, self._update_status)
 
-    def _on_install(self, event: InstallEvent) -> None:
-        """Handles the install event.
+    def _update_status(self, event: EventBase) -> None:
+        """Handles charm events that need to update the status.
 
-        The charm will be in Active Status and ready to handle actions.
+        The charm will be in Active Status when related to a TLS Provider
+        and Blocked status otherwise.
 
         Args:
-            event (InstallEvent): Juju event.
+            event (EventBase): Juju event.
 
         Returns:
             None
         """
+        if not self.model.get_relation("certificates-provider"):
+            self.unit.status = BlockedStatus("Waiting for TLS certificates provider relation")
+            return
         self.unit.status = ActiveStatus()
 
 
