@@ -14,6 +14,10 @@ source: https://github.com/canonical/tls-constraints-operator
 issues: https://github.com/canonical/tls-constraints-operator/issues
 
 requires:
-  certificates-provider:
+  certificates-requires:
     interface: tls-certificates
     limit: 1
+
+provides:
+  certificates-provides:
+    interface: tls-certificates
