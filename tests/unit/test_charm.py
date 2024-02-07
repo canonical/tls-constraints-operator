@@ -40,7 +40,7 @@ class TestCharm(unittest.TestCase):
     def test_given_not_related_to_provider_when_on_install_then_status_is_blocked(self) -> None:
         self.harness.charm.on.install.emit()
         self.assertEqual(
-            BlockedStatus("Waiting for TLS certificates provider relation"),
+            BlockedStatus("Need a relation to a TLS certificates provider"),
             self.harness.charm.unit.status,
         )
 
@@ -58,7 +58,7 @@ class TestCharm(unittest.TestCase):
         self._integrate_requirer()
 
         self.assertEqual(
-            BlockedStatus("Waiting for TLS certificates provider relation"),
+            BlockedStatus("Need a relation to a TLS certificates provider"),
             self.harness.charm.unit.status,
         )
 
@@ -70,7 +70,7 @@ class TestCharm(unittest.TestCase):
         self.harness.charm._on_certificate_creation_request(event=Mock())
 
         self.assertEqual(
-            BlockedStatus("Waiting for TLS certificates provider relation"),
+            BlockedStatus("Need a relation to a TLS certificates provider"),
             self.harness.charm.unit.status,
         )
 
@@ -122,7 +122,7 @@ class TestCharm(unittest.TestCase):
         self.harness.charm._on_certificate_revocation_request(event=Mock())
 
         self.assertEqual(
-            BlockedStatus("Waiting for TLS certificates provider relation"),
+            BlockedStatus("Need a relation to a TLS certificates provider"),
             self.harness.charm.unit.status,
         )
 
@@ -236,7 +236,6 @@ class TestCharm(unittest.TestCase):
     ) -> None:
         self._integrate_provider()
         requirer_relation_id = self._integrate_requirer()
-        # TODO
         self.harness.update_relation_data(
             requirer_relation_id,
             "certificates-requirer/0",

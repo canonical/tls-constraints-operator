@@ -33,7 +33,7 @@ class TLSConstraintsCharm(CharmBase):
     """Main class to handle Juju events."""
 
     def __init__(self, *args):
-        """Observes config change and certificate request events."""
+        """Setup charm integration handlers and observe Juju events."""
         super().__init__(*args)
         self.certificates_provider = TLSCertificatesRequiresV2(self, REQUIRES_RELATION_NAME)
         self.certificates_requirers = TLSCertificatesProvidesV2(self, PROVIDES_RELATION_NAME)
@@ -75,7 +75,7 @@ class TLSConstraintsCharm(CharmBase):
             None
         """
         if not self.model.get_relation(REQUIRES_RELATION_NAME):
-            self.unit.status = BlockedStatus("Waiting for TLS certificates provider relation")
+            self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
         self.unit.status = ActiveStatus()
 
@@ -94,7 +94,7 @@ class TLSConstraintsCharm(CharmBase):
         """
         if not self.model.get_relation(REQUIRES_RELATION_NAME):
             event.defer()
-            self.unit.status = BlockedStatus("Waiting for TLS certificates provider relation")
+            self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
         self.certificates_provider.request_certificate_creation(
             event.certificate_signing_request.encode(), event.is_ca
@@ -114,7 +114,7 @@ class TLSConstraintsCharm(CharmBase):
             None
         """
         if not self.model.get_relation(REQUIRES_RELATION_NAME):
-            self.unit.status = BlockedStatus("Waiting for TLS certificates provider relation")
+            self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
         self.certificates_provider.request_certificate_revocation(
             event.certificate_signing_request.encode()
