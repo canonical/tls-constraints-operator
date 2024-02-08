@@ -108,17 +108,11 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(requested_csrs[0]["certificate_signing_request"], "test_csr")
         self.assertFalse(requested_csrs[0]["ca"])
 
-    def test_given_no_provider_related_when_requirer_requests_certificate_revocation_then_status_is_blocked(  # noqa: E501
+    def test_given_no_provider_related_and_active_status_when_requirer_requests_certificate_revocation_then_status_is_blocked(  # noqa: E501
         self,
     ) -> None:
-        requirer_relation_id = self._integrate_requirer()
-        event = CertificateCreationRequestEvent(
-            handle=Mock(),
-            certificate_signing_request="test_csr",
-            relation_id=requirer_relation_id,
-        )
-        self.harness.charm._on_certificate_creation_request(event=event)
         self.harness.charm.unit.status = ActiveStatus()
+
         self.harness.charm._on_certificate_revocation_request(event=Mock())
 
         self.assertEqual(
