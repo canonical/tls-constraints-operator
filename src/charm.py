@@ -194,12 +194,11 @@ class TLSConstraintsCharm(CharmBase):
         all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
         relation_ids: set[int] = set()
         for requirer_csrs in all_requirers_csrs:
-            match requirer_csrs:
-                case {
-                    "relation_id": relation_id,
-                    "unit_csrs": [{"certificate_signing_request": str(unit_csr)}],
-                } if unit_csr == csr:  # type: ignore[has-type]
-                    relation_ids.add(relation_id)
+            unit_csrs = (
+                entry["certificate_signing_request"] for entry in requirer_csrs["unit_csrs"]
+            )
+            if csr in unit_csrs:
+                relation_ids.add(requirer_csrs["relation_id"])
         if not relation_ids:
             return None
         if len(relation_ids) > 1:
