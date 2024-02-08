@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
+from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
     CertificateInvalidatedEvent,
@@ -37,14 +37,18 @@ class TestCharm(unittest.TestCase):
         self.harness.set_leader(True)
         self.harness.begin()
 
-    def test_given_not_related_to_provider_when_on_install_then_status_is_blocked(self) -> None:
+    def test_given_not_related_to_provider_when_on_install_then_status_is_blocked(
+        self,
+    ) -> None:
         self.harness.charm.on.install.emit()
         self.assertEqual(
             BlockedStatus("Need a relation to a TLS certificates provider"),
             self.harness.charm.unit.status,
         )
 
-    def test_given_installed_when_related_to_tls_provider_then_status_is_active(self) -> None:
+    def test_given_installed_when_related_to_tls_provider_then_status_is_active(
+        self,
+    ) -> None:
         self._integrate_provider()
 
         self.assertEqual(
@@ -105,8 +109,8 @@ class TestCharm(unittest.TestCase):
             self.harness.charm.certificates_provider.get_certificate_signing_requests()
         )
         self.assertEqual(len(requested_csrs), 1)
-        self.assertEqual(requested_csrs[0]["certificate_signing_request"], "test_csr")
-        self.assertFalse(requested_csrs[0]["ca"])
+        self.assertEqual(requested_csrs[0].csr, "test_csr")
+        self.assertFalse(requested_csrs[0].is_ca)
 
     def test_given_no_provider_related_and_active_status_when_requirer_requests_certificate_revocation_then_status_is_blocked(  # noqa: E501
         self,
@@ -170,10 +174,8 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(requirers_certificates["certificates-requirer"][0]["csr"], "test_csr")
-        self.assertEqual(
-            requirers_certificates["certificates-requirer"][0]["certificate"], "test_cert"
-        )
+        self.assertEqual(requirers_certificates[0].csr, "test_csr")
+        self.assertEqual(requirers_certificates[0].certificate, "test_cert")
 
     def test_given_no_requested_certificate_when_certificate_available_then_error_is_logged(
         self,
@@ -247,7 +249,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates["certificates-requirer"]), 1)
+        self.assertEqual(len(requirers_certificates), 1)
 
         invalidated_event = CertificateInvalidatedEvent(
             handle=Mock(),
@@ -262,7 +264,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates["certificates-requirer"]), 0)
+        self.assertEqual(len(requirers_certificates), 0)
 
     def test_given_provided_certificate_when_certificate_expired_then_event_is_ignored(
         self,
@@ -286,7 +288,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates["certificates-requirer"]), 1)
+        self.assertEqual(len(requirers_certificates), 1)
 
         invalidated_event = CertificateInvalidatedEvent(
             handle=Mock(),
@@ -301,7 +303,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates["certificates-requirer"]), 1)
+        self.assertEqual(len(requirers_certificates), 1)
 
     def test_given_multiple_provided_certificate_when_all_certificates_invalidated_then_all_certificates_are_removed(  # noqa: E501
         self,
@@ -346,8 +348,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = (
             self.harness.charm.certificates_requirers.get_issued_certificates()
         )
-        for certificates in requirers_certificates.values():
-            self.assertFalse(certificates)
+        self.assertEqual(len(requirers_certificates), 0)
 
     def _integrate_provider(self) -> int:
         provider_relation_id = self.harness.add_relation(

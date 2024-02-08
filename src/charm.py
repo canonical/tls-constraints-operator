@@ -10,14 +10,14 @@ Certificates are provided by the operator trough Juju configs.
 import logging
 from typing import Optional
 
-from charms.tls_certificates_interface.v2.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
+from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
     AllCertificatesInvalidatedEvent,
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
     CertificateInvalidatedEvent,
     CertificateRevocationRequestEvent,
-    TLSCertificatesProvidesV2,
-    TLSCertificatesRequiresV2,
+    TLSCertificatesProvidesV3,
+    TLSCertificatesRequiresV3,
 )
 from ops.charm import CharmBase, EventBase
 from ops.main import main
@@ -35,8 +35,8 @@ class TLSConstraintsCharm(CharmBase):
     def __init__(self, *args):
         """Setup charm integration handlers and observe Juju events."""
         super().__init__(*args)
-        self.certificates_provider = TLSCertificatesRequiresV2(self, REQUIRES_RELATION_NAME)
-        self.certificates_requirers = TLSCertificatesProvidesV2(self, PROVIDES_RELATION_NAME)
+        self.certificates_provider = TLSCertificatesRequiresV3(self, REQUIRES_RELATION_NAME)
+        self.certificates_requirers = TLSCertificatesProvidesV3(self, PROVIDES_RELATION_NAME)
         self.framework.observe(self.on.install, self._update_status)
         self.framework.observe(self.on.update_status, self._update_status)
         self.framework.observe(self.on.certificates_requires_relation_joined, self._update_status)
@@ -192,13 +192,11 @@ class TLSConstraintsCharm(CharmBase):
             Relation ID (int) or None
         """
         all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
-        relation_ids: set[int] = set()
-        for requirer_csrs in all_requirers_csrs:
-            unit_csrs = (
-                entry["certificate_signing_request"] for entry in requirer_csrs["unit_csrs"]
-            )
-            if csr in unit_csrs:
-                relation_ids.add(requirer_csrs["relation_id"])
+        relation_ids = {
+            requirer_csr.relation_id
+            for requirer_csr in all_requirers_csrs
+            if requirer_csr.csr == csr
+        }
         if not relation_ids:
             return None
         if len(relation_ids) > 1:

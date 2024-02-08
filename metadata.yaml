@@ -21,3 +21,6 @@ requires:
 provides:
   certificates-provides:
     interface: tls-certificates
+
+assumes:
+  - juju >= 3.1
