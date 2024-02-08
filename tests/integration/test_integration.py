@@ -16,6 +16,8 @@ APPLICATION_NAME = METADATA["name"]
 
 TLS_PROVIDER_CHARM_NAME = "self-signed-certificates"
 TLS_REQUIRER_CHARM_NAME = "tls-certificates-requirer"
+TLS_REQUIRER1 = f"{TLS_REQUIRER_CHARM_NAME}1"
+TLS_REQUIRER2 = f"{TLS_REQUIRER_CHARM_NAME}2"
 
 
 @pytest.fixture(scope="module")
@@ -31,12 +33,12 @@ async def build_and_deploy(ops_test: OpsTest):
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
-        application_name=f"{TLS_REQUIRER_CHARM_NAME}1",
+        application_name=TLS_REQUIRER1,
         channel="edge",
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
-        application_name=f"{TLS_REQUIRER_CHARM_NAME}2",
+        application_name=TLS_REQUIRER2,
         channel="edge",
     )
     charm = await charm_build
@@ -63,7 +65,7 @@ async def test_given_provider_is_related_then_status_is_active(
     assert ops_test.model
     await ops_test.model.add_relation(
         relation1=f"{APPLICATION_NAME}:certificates-requires",
-        relation2=f"{TLS_PROVIDER_CHARM_NAME}",
+        relation2=TLS_PROVIDER_CHARM_NAME,
     )
 
     await ops_test.model.wait_for_idle(apps=[APPLICATION_NAME], status="active", timeout=1000)
@@ -75,15 +77,14 @@ async def test_given_tls_requirer1_is_deployed_and_related_then_certificate_is_c
 ):
     assert ops_test.model
     await ops_test.model.add_relation(
-        relation1=f"{APPLICATION_NAME}:certificates-provides",
-        relation2=f"{TLS_REQUIRER_CHARM_NAME}1",
+        relation1=f"{APPLICATION_NAME}:certificates-provides", relation2=TLS_REQUIRER1
     )
     await ops_test.model.wait_for_idle(
-        apps=[f"{TLS_REQUIRER_CHARM_NAME}1"],
+        apps=[TLS_REQUIRER1],
         status="active",
         timeout=1000,
     )
-    action_output = await run_get_certificate_action(ops_test, f"{TLS_REQUIRER_CHARM_NAME}1")
+    action_output = await run_get_certificate_action(ops_test, TLS_REQUIRER1)
     assert action_output["certificate"] is not None
     assert action_output["ca-certificate"] is not None
     assert action_output["csr"] is not None
@@ -96,19 +97,19 @@ async def test_given_tls_requirer2_is_deployed_and_related_then_certificate_is_c
     assert ops_test.model
     await ops_test.model.add_relation(
         relation1=f"{APPLICATION_NAME}:certificates-provides",
-        relation2=f"{TLS_REQUIRER_CHARM_NAME}2",
+        relation2=TLS_REQUIRER2,
     )
     await ops_test.model.wait_for_idle(
-        apps=[f"{TLS_REQUIRER_CHARM_NAME}2"],
+        apps=[TLS_REQUIRER2],
         status="active",
         timeout=1000,
     )
-    action_output2 = await run_get_certificate_action(ops_test, f"{TLS_REQUIRER_CHARM_NAME}2")
+    action_output2 = await run_get_certificate_action(ops_test, TLS_REQUIRER2)
     assert action_output2["certificate"] is not None
     assert action_output2["ca-certificate"] is not None
     assert action_output2["csr"] is not None
 
-    action_output1 = await run_get_certificate_action(ops_test, f"{TLS_REQUIRER_CHARM_NAME}1")
+    action_output1 = await run_get_certificate_action(ops_test, TLS_REQUIRER1)
     assert action_output1["certificate"] != action_output2["certificate"]
     assert action_output1["csr"] != action_output2["csr"]
 
