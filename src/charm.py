@@ -191,9 +191,9 @@ class TLSConstraintsCharm(CharmBase):
         Returns:
             Relation ID (int) or None
         """
-        requirers_csrs = self.certificates_requirers.get_requirer_csrs()
+        all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
         relation_ids: set[int] = set()
-        for requirer_csrs in requirers_csrs:
+        for requirer_csrs in all_requirers_csrs:
             match requirer_csrs:
                 case {
                     "relation_id": relation_id,
