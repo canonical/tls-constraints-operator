@@ -4,13 +4,13 @@
 
 """Charm responsible for distributing certificates through relationship.
 
-Certificates are provided by the operator trough Juju configs.
+Certificates are provided by the operator through Juju configs.
 """
 
 import logging
 from typing import Optional
 
-from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
+from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
@@ -19,7 +19,8 @@ from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ign
     TLSCertificatesProvidesV3,
     TLSCertificatesRequiresV3,
 )
-from ops.charm import CharmBase, EventBase
+from ops.charm import CharmBase
+from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus
 
@@ -33,7 +34,7 @@ class TLSConstraintsCharm(CharmBase):
     """Main class to handle Juju events."""
 
     def __init__(self, *args):
-        """Setup charm integration handlers and observe Juju events."""
+        """Set up charm integration handlers and observe Juju events."""
         super().__init__(*args)
         self.certificates_provider = TLSCertificatesRequiresV3(self, REQUIRES_RELATION_NAME)
         self.certificates_requirers = TLSCertificatesProvidesV3(self, PROVIDES_RELATION_NAME)
@@ -63,7 +64,7 @@ class TLSConstraintsCharm(CharmBase):
         )
 
     def _update_status(self, event: EventBase) -> None:
-        """Handles charm events that need to update the status.
+        """Handle charm events that need to update the status.
 
         The charm will be in Active Status when related to a TLS Provider
         and Blocked status otherwise.
@@ -80,10 +81,10 @@ class TLSConstraintsCharm(CharmBase):
         self.unit.status = ActiveStatus()
 
     def _on_certificate_creation_request(self, event: CertificateCreationRequestEvent) -> None:
-        """Handles certificate creation request events.
+        """Handle certificate creation request events.
 
         If a TLS provider is not integrated to this charm, the event will be
-        defered and the status will be Blocked.
+        deferred and the status will be Blocked.
         Otherwise, the request will be forwarded to the provider.
 
         Args:
@@ -101,7 +102,7 @@ class TLSConstraintsCharm(CharmBase):
         )
 
     def _on_certificate_revocation_request(self, event: CertificateRevocationRequestEvent) -> None:
-        """Handles certificate revocation request events.
+        """Handle certificate revocation request events.
 
         In the unlikely case a TLS provider is not integrated to this charm,
         the status will be blocked, and this event will be ignored.
@@ -121,11 +122,11 @@ class TLSConstraintsCharm(CharmBase):
         )
 
     def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:
-        """Handles certificate available events.
+        """Handle certificate available events.
 
-        Finds the relation ID matching the CSR and forwards the received
+        Find the relation ID matching the CSR and forward the received
         certificate to that relation.
-        If a relation ID is not found, logs an error and ignores the event.
+        If a relation ID is not found, log an error and ignores the event.
 
         Args:
             event (CertificateAvailableEvent): Event containing the certificate
@@ -149,7 +150,7 @@ class TLSConstraintsCharm(CharmBase):
         )
 
     def _on_certificate_invalidated(self, event: CertificateInvalidatedEvent) -> None:
-        """Handles certificate invalidated events.
+        """Handle certificate invalidated events.
 
         If the certificate is invalidated because it expired, ignore the event
         and let the requirer handle it properly. Otherwise, calls the TLS
@@ -166,7 +167,7 @@ class TLSConstraintsCharm(CharmBase):
         self.certificates_requirers.remove_certificate(event.certificate)
 
     def _on_all_certificates_invalidated(self, event: AllCertificatesInvalidatedEvent) -> None:
-        """Handles all certificates invalidated events.
+        """Handle all certificates invalidated events.
 
         Revokes all certificates.
 
@@ -179,7 +180,7 @@ class TLSConstraintsCharm(CharmBase):
         self.certificates_requirers.revoke_all_certificates()
 
     def _get_relation_id_for_csr(self, csr: str) -> Optional[int]:
-        """Finds the relation ID that sent the provided CSR.
+        """Find the relation ID that sent the provided CSR.
 
         This should return a single relation ID, otherwise it means multiple
         applications requested the same certificate using the same private
