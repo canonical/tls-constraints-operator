@@ -4,7 +4,8 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ignore[import-not-found]  # noqa: E501
+from charm import TLSConstraintsCharm, logger
+from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
     CertificateInvalidatedEvent,
@@ -12,8 +13,6 @@ from charms.tls_certificates_interface.v3.tls_certificates import (  # type: ign
 )
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus
-
-from charm import TLSConstraintsCharm, logger
 
 PROVIDES_RELATION_NAME = "certificates-provides"
 REQUIRES_RELATION_NAME = "certificates-requires"

@@ -115,7 +115,7 @@ async def test_given_tls_requirer2_is_deployed_and_related_then_certificate_is_c
 
 
 async def run_get_certificate_action(ops_test: OpsTest, app_name: str) -> dict:
-    """Runs `get-certificate` on the first unit of app_name.
+    """Run `get-certificate` on the first unit of app_name.
 
     Args:
         ops_test (OpsTest): OpsTest
