@@ -126,6 +126,7 @@ async def run_get_certificate_action(ops_test: OpsTest, app_name: str) -> dict:
     """
     assert ops_test.model
     tls_requirer_unit = ops_test.model.units[f"{app_name}/0"]
+    assert tls_requirer_unit
     action = await tls_requirer_unit.run_action(
         action_name="get-certificate",
     )
