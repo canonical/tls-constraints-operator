@@ -14,12 +14,12 @@ source: https://github.com/canonical/tls-constraints-operator
 issues: https://github.com/canonical/tls-constraints-operator/issues
 
 requires:
-  certificates-requires:
+  certificates-upstream:
     interface: tls-certificates
     limit: 1
 
 provides:
-  certificates-provides:
+  certificates-downstream:
     interface: tls-certificates
 
 assumes:
