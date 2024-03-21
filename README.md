@@ -11,8 +11,8 @@ Deploy the charm and integrate it to a certificate requirer, and to a certificat
 
 ```bash
 juju deploy tls-constraints --channel beta
-juju integrate tls-constraints <TLS Certificates Requirer>
-juju integrate tls-constraints <TLS Certificates Provider>
+juju integrate tls-constraints:certificates-downstream <TLS Certificates Requirer>
+juju integrate tls-constraints:certificates-upstream <TLS Certificates Provider>
 ```
 
 ## Integrations

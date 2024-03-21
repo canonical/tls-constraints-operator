@@ -18,6 +18,8 @@ TLS_PROVIDER_CHARM_NAME = "self-signed-certificates"
 TLS_REQUIRER_CHARM_NAME = "tls-certificates-requirer"
 TLS_REQUIRER1 = f"{TLS_REQUIRER_CHARM_NAME}1"
 TLS_REQUIRER2 = f"{TLS_REQUIRER_CHARM_NAME}2"
+RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
+RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
 
 @pytest.fixture(scope="module")
@@ -64,7 +66,7 @@ async def test_given_provider_is_related_then_status_is_active(
 ):
     assert ops_test.model
     await ops_test.model.add_relation(
-        relation1=f"{APPLICATION_NAME}:certificates-requires",
+        relation1=f"{APPLICATION_NAME}:{RELATION_NAME_TO_TLS_PROVIDER}",
         relation2=TLS_PROVIDER_CHARM_NAME,
     )
 
@@ -77,7 +79,7 @@ async def test_given_tls_requirer1_is_deployed_and_related_then_certificate_is_c
 ):
     assert ops_test.model
     await ops_test.model.add_relation(
-        relation1=f"{APPLICATION_NAME}:certificates-provides", relation2=TLS_REQUIRER1
+        relation1=f"{APPLICATION_NAME}:{RELATION_NAME_TO_TLS_REQUIRER}", relation2=TLS_REQUIRER1
     )
     await ops_test.model.wait_for_idle(
         apps=[TLS_REQUIRER1],
@@ -96,7 +98,7 @@ async def test_given_tls_requirer2_is_deployed_and_related_then_certificate_is_c
 ):
     assert ops_test.model
     await ops_test.model.add_relation(
-        relation1=f"{APPLICATION_NAME}:certificates-provides",
+        relation1=f"{APPLICATION_NAME}:{RELATION_NAME_TO_TLS_REQUIRER}",
         relation2=TLS_REQUIRER2,
     )
     await ops_test.model.wait_for_idle(

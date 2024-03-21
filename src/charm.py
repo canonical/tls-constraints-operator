@@ -26,8 +26,8 @@ from ops.model import ActiveStatus, BlockedStatus
 
 logger = logging.getLogger(__name__)
 
-PROVIDES_RELATION_NAME = "certificates-provides"
-REQUIRES_RELATION_NAME = "certificates-requires"
+RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
+RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
 
 class TLSConstraintsCharm(CharmBase):
@@ -36,12 +36,19 @@ class TLSConstraintsCharm(CharmBase):
     def __init__(self, *args):
         """Set up charm integration handlers and observe Juju events."""
         super().__init__(*args)
-        self.certificates_provider = TLSCertificatesRequiresV3(self, REQUIRES_RELATION_NAME)
-        self.certificates_requirers = TLSCertificatesProvidesV3(self, PROVIDES_RELATION_NAME)
+        self.certificates_provider = TLSCertificatesRequiresV3(
+            self, RELATION_NAME_TO_TLS_PROVIDER,
+        )
+        self.certificates_requirers = TLSCertificatesProvidesV3(
+            self, RELATION_NAME_TO_TLS_REQUIRER,
+        )
         self.framework.observe(self.on.install, self._update_status)
         self.framework.observe(self.on.update_status, self._update_status)
-        self.framework.observe(self.on.certificates_requires_relation_joined, self._update_status)
-        self.framework.observe(self.on.certificates_provides_relation_joined, self._update_status)
+        self.framework.observe(self.on.certificates_upstream_relation_joined, self._update_status)
+        self.framework.observe(
+            self.on.certificates_downstream_relation_joined,
+            self._update_status,
+        )
         self.framework.observe(
             self.certificates_requirers.on.certificate_creation_request,
             self._on_certificate_creation_request,
@@ -75,7 +82,7 @@ class TLSConstraintsCharm(CharmBase):
         Returns:
             None
         """
-        if not self.model.get_relation(REQUIRES_RELATION_NAME):
+        if not self.model.get_relation(RELATION_NAME_TO_TLS_PROVIDER):
             self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
         self.unit.status = ActiveStatus()
@@ -93,7 +100,7 @@ class TLSConstraintsCharm(CharmBase):
         Returns:
             None
         """
-        if not self.model.get_relation(REQUIRES_RELATION_NAME):
+        if not self.model.get_relation(RELATION_NAME_TO_TLS_PROVIDER):
             event.defer()
             self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
@@ -114,7 +121,7 @@ class TLSConstraintsCharm(CharmBase):
         Returns:
             None
         """
-        if not self.model.get_relation(REQUIRES_RELATION_NAME):
+        if not self.model.get_relation(RELATION_NAME_TO_TLS_PROVIDER):
             self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
         self.certificates_provider.request_certificate_revocation(

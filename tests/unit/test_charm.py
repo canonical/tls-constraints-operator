@@ -14,8 +14,8 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus
 
-PROVIDES_RELATION_NAME = "certificates-provides"
-REQUIRES_RELATION_NAME = "certificates-requires"
+RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
+RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
 
 def get_json_csr_list(csr: str = "test_csr", is_ca: bool = False):
@@ -351,7 +351,7 @@ class TestCharm(unittest.TestCase):
 
     def _integrate_provider(self) -> int:
         provider_relation_id = self.harness.add_relation(
-            relation_name=REQUIRES_RELATION_NAME,
+            relation_name=RELATION_NAME_TO_TLS_PROVIDER,
             remote_app="certificates-provider",
         )
         self.harness.add_relation_unit(
@@ -364,7 +364,7 @@ class TestCharm(unittest.TestCase):
         self, app_name: str = "certificates-requirer", unit_id: int = 0
     ) -> int:
         requirer_relation_id = self.harness.add_relation(
-            relation_name=PROVIDES_RELATION_NAME,
+            relation_name=RELATION_NAME_TO_TLS_REQUIRER,
             remote_app=app_name,
         )
         self.harness.add_relation_unit(
