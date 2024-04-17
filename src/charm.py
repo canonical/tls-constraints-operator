@@ -56,6 +56,10 @@ class LimitToOneRequest:
         """Accept CSR if its the first CSR of a relation or the renewal of the existing CSR."""
         relevant_csrs = [csr for csr in requirer_csrs if csr.relation_id == relation_id]
         if len(relevant_csrs) > 1:
+            logger.warning(
+                "Denied CSR for relation_id: %d. Only a single CSR is allowed for application.",
+                relation_id,
+            )
             return False
         return True
 
@@ -140,7 +144,7 @@ class TLSConstraintsCharm(CharmBase):
         if self._is_certificate_allowed(csr, event.relation_id):
             self.certificates_provider.request_certificate_creation(csr, event.is_ca)
         else:
-            logger.warn(
+            logger.warning(
                 "Certificate Request for relation ID %d was denied. Details in previous logs.",
                 event.relation_id,
             )

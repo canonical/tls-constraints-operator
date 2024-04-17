@@ -5,12 +5,13 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from charm import TLSConstraintsCharm, logger
+from charm import LimitToOneRequest, TLSConstraintsCharm, logger
 from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
     CertificateInvalidatedEvent,
     CertificateRevocationRequestEvent,
+    RequirerCSR,
 )
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus
@@ -414,3 +415,54 @@ class TestCharm(unittest.TestCase):
             remote_unit_name=f"{app_name}/{unit_id}",
         )
         return requirer_relation_id
+
+    def test_given_limit_to_one_filter_when_config_set_then_filter_available(  # noqa: E501
+        self,
+    ) -> None:
+        self.harness.update_config({"limit-to-one-request": True})
+        assert len(self.harness.charm._get_csr_filters()) > 0
+        assert isinstance(self.harness.charm._get_csr_filters()[0], LimitToOneRequest)
+
+    def test_given_limit_to_one_filter_when_given_one_csr_then_not_filtered(  # noqa: E501
+        self,
+    ) -> None:
+        requirer_csrs = [
+            RequirerCSR(
+                relation_id=2,
+                application_name="certificates-requirer",
+                unit_name="certificates-requirer/0",
+                csr="test_csr",
+                is_ca=False,
+            ),
+            RequirerCSR(
+                relation_id=3,
+                application_name="certificates-requirer",
+                unit_name="certificates-requirer/1",
+                csr="test_csr2",
+                is_ca=False,
+            ),
+        ]
+        filter = LimitToOneRequest()
+        assert filter.evaluate(b"", 1, requirer_csrs) is True
+
+    def test_given_limit_to_one_filter_when_given_two_csr_then_filtered(  # noqa: E501
+        self,
+    ) -> None:
+        requirer_csrs = [
+            RequirerCSR(
+                relation_id=1,
+                application_name="certificates-requirer",
+                unit_name="certificates-requirer/0",
+                csr="test_csr",
+                is_ca=False,
+            ),
+            RequirerCSR(
+                relation_id=1,
+                application_name="certificates-requirer",
+                unit_name="certificates-requirer/1",
+                csr="test_csr2",
+                is_ca=False,
+            ),
+        ]
+        filter = LimitToOneRequest()
+        assert filter.evaluate(b"", 1, requirer_csrs) is False
