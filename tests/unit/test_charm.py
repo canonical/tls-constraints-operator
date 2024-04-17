@@ -5,7 +5,7 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from charm import LimitToOneRequest, TLSConstraintsCharm
+from charm import AllowedFields, LimitToOneRequest, TLSConstraintsCharm, logger
 from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
@@ -466,3 +466,39 @@ class TestCharm:
         ]
         filter = LimitToOneRequest()
         assert filter.evaluate(b"", 1, requirer_csrs) is False
+
+    def test_given_allowlist_config_filter_when_config_set_then_filter_available(  # noqa: E501
+        self,
+    ) -> None:
+        self.harness.update_config(
+            {
+                "allowed-dns": "myapp(-[0-9]+)?\.mycompany.com",
+                "allowed-ips": "172\.25\.0\.[0-9]*",
+                "allowed-oids": "1.3.6.1.4.1.28978.[0-9.]*",
+                "allowed-organization": "Canonical Ltd.",
+                "allowed-email": ".*@canonical.com",
+                "allowed-country-code": "(UK|CA|PL|AE|HU|FR|TR|IT)$",
+            }
+        )
+        assert len(self.harness.charm._get_csr_filters()) > 0
+        assert isinstance(self.harness.charm._get_csr_filters()[0], AllowedFields)
+
+    def test_given_allowlist_config_filter_when_config_set_then_filter_applied_properly(  # noqa: E501
+        self,
+    ) -> None:
+        # Create a CSR that fits the following config
+        csr = ""
+        rules = {
+            "allowed-dns": "myapp(-[0-9]+)?\.mycompany.com",
+            "allowed-ips": "172\.25\.0\.[0-9]*",
+            "allowed-oids": "1.3.6.1.4.1.28978.[0-9.]*",
+            "allowed-organization": "Canonical Ltd.",
+            "allowed-email": ".*@canonical.com",
+            "allowed-country-code": "(UK|CA|PL|AE|HU|FR|TR|IT)$",
+        }
+        filter = AllowedFields(rules)
+
+        with self.assertLogs(logger, level="WARNING") as logs:
+            assert filter.evaluate(csr, 1, []) is True
+
+        self.assertIn("ERROR:charm:Could not find the relation for CSR: test_csr.", logs.output)
