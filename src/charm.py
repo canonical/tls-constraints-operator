@@ -123,9 +123,10 @@ class TLSConstraintsCharm(CharmBase):
             event.defer()
             self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
-        if self._is_certificate_allowed(event):
+        csr = event.certificate_signing_request.encode()
+        if self._is_certificate_allowed(csr, event.relation_id):
             self.certificates_provider.request_certificate_creation(
-                event.certificate_signing_request.encode(), event.is_ca
+                csr, event.is_ca
             )
 
     def _on_certificate_revocation_request(self, event: CertificateRevocationRequestEvent) -> None:
@@ -235,20 +236,19 @@ class TLSConstraintsCharm(CharmBase):
             return None
         return relation_ids.pop()
 
-    def _is_certificate_allowed(self, event: CertificateCreationRequestEvent) -> bool:
+    def _is_certificate_allowed(self, csr: bytes, relation_id: int) -> bool:
         """Decide if the certificate should be allowed.
 
         Args:
-            event (CertificateCreationRequestEvent): Event for a certificate creation
+            csr (bytes): Certificate Signing Request to validate
+            relation_id (int): Relation ID that sent the CSR
 
         Returns:
             True if the certificate should be allowed, False otherwise
         """
         filters = self._get_csr_filters()
         all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
-        if not all(filter.evaluate(event.certificate_signing_request.encode(),
-                                   event.relation_id,
-                                   all_requirers_csrs)
+        if not all(filter.evaluate(csr, relation_id, all_requirers_csrs)
                    for filter in filters):
             return False
         return True
