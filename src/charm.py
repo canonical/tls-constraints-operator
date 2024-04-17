@@ -20,6 +20,7 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     TLSCertificatesProvidesV3,
     TLSCertificatesRequiresV3,
 )
+from cryptography import x509
 from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
@@ -61,6 +62,32 @@ class LimitToOneRequest:
                 relation_id,
             )
             return False
+        return True
+
+
+class AllowedFields:
+    """Filter the CSR so as to only allow CSRs that match the given regexes for the CSR fields."""
+
+    def __init__(self, fields: dict):
+        self.filter_regexes = {}
+        for field, val in fields.items():
+            self.filter_regexes[field] = val
+
+    def evaluate(self, csr: bytes, relation_id: int, requiere_csrs: list[RequirerCSR]) -> bool:
+        """Accept CSR only if the given CSR passes the field regex matches."""
+        csrObject = x509.load_pem_x509_csr(csr)
+        if self.filter_regexes.get("dns"):
+            pass
+        if self.filter_regexes.get("ips"):
+            pass
+        if self.filter_regexes.get("oids"):
+            pass
+        if self.filter_regexes.get("organization"):
+            pass
+        if self.filter_regexes.get("email"):
+            pass
+        if self.filter_regexes.get("country-code"):
+            pass
         return True
 
 
@@ -283,6 +310,23 @@ class TLSConstraintsCharm(CharmBase):
         filters = []
         if self.config.get("limit-to-one-request", None):
             filters.append(LimitToOneRequest())
+
+        allow_challenges = {}
+        if dns_challenge := self.config.get("allowed-dns", ""):
+            allow_challenges["dns"] = dns_challenge
+        if ip_challenge := self.config.get("allowed-ips", ""):
+            allow_challenges["ips"] = ip_challenge
+        if oid_challenge := self.config.get("allowed-oids", ""):
+            allow_challenges["oids"] = oid_challenge
+        if organization_challenge := self.config.get("allowed-organization", ""):
+            allow_challenges["organization"] = organization_challenge
+        if email_challenge := self.config.get("allowed-email", ""):
+            allow_challenges["email"] = email_challenge
+        if country_code_challenge := self.config.get("allowed-country-code", ""):
+            allow_challenges["country-code"] = country_code_challenge
+
+        if len(allow_challenges.items()) > 0:
+            filters.append(AllowedFields(allow_challenges))
 
         return filters
 

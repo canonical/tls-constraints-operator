@@ -4,3 +4,9 @@ options:
     type: boolean
     description: |
       Limit to one request will only allow a single CSR from any requirer
+  
+  allowed-dns:
+    default: ""
+    type: string
+    description: |
+      Regex for describing custom filtering options for any CSRs
