@@ -8,7 +8,7 @@ Certificates are provided by the operator through Juju configs.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
@@ -16,6 +16,7 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateCreationRequestEvent,
     CertificateInvalidatedEvent,
     CertificateRevocationRequestEvent,
+    RequirerCSR,
     TLSCertificatesProvidesV3,
     TLSCertificatesRequiresV3,
 )
@@ -28,6 +29,24 @@ logger = logging.getLogger(__name__)
 
 RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
 RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
+
+
+class CsrFilter(Protocol):
+    """Protocol class defining a CSR filter for applying constraints."""
+
+    def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
+        """Evaluate if the provided CSR should be allowed.
+
+        Args:
+            csr (bytes): CSR to evaluate
+            relation_id (int): ID of the relation sending the CSR
+            requirer_csrs (list): All requirer CSRs received for comparison
+
+        Returns:
+            bool: True if the CSR is allowed, False otherwise.
+
+        """
+        ...
 
 
 class TLSConstraintsCharm(CharmBase):
@@ -104,9 +123,16 @@ class TLSConstraintsCharm(CharmBase):
             event.defer()
             self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
             return
-        self.certificates_provider.request_certificate_creation(
-            event.certificate_signing_request.encode(), event.is_ca
-        )
+        csr = event.certificate_signing_request.encode()
+        if self._is_certificate_allowed(csr, event.relation_id):
+            self.certificates_provider.request_certificate_creation(
+                csr, event.is_ca
+            )
+        else:
+            logger.warn(
+                "Certificate Request for relation ID %d was denied. Details in previous logs.",
+                event.relation_id
+            )
 
     def _on_certificate_revocation_request(self, event: CertificateRevocationRequestEvent) -> None:
         """Handle certificate revocation request events.
@@ -214,6 +240,33 @@ class TLSConstraintsCharm(CharmBase):
             )
             return None
         return relation_ids.pop()
+
+    def _is_certificate_allowed(self, csr: bytes, relation_id: int) -> bool:
+        """Decide if the certificate should be allowed.
+
+        Args:
+            csr (bytes): Certificate Signing Request to validate
+            relation_id (int): Relation ID that sent the CSR
+
+        Returns:
+            True if the certificate should be allowed, False otherwise
+        """
+        filters = self._get_csr_filters()
+        all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
+        if not all(filter.evaluate(csr, relation_id, all_requirers_csrs)
+                   for filter in filters):
+            return False
+        return True
+
+    def _get_csr_filters(self) -> list[CsrFilter]:
+        """Get all CsrFilters to apply.
+
+        The individual filters are instantiated based on the charm configuration.
+
+        Returns:
+            list of CsrFilters to apply
+        """
+        return []
 
 
 if __name__ == "__main__":
