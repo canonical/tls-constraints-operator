@@ -16,6 +16,7 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateCreationRequestEvent,
     CertificateInvalidatedEvent,
     CertificateRevocationRequestEvent,
+    RequirerCSR,
     TLSCertificatesProvidesV3,
     TLSCertificatesRequiresV3,
 )
@@ -23,8 +24,6 @@ from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus
-
-from lib.charms.tls_certificates_interface.v3.tls_certificates import RequirerCSR
 
 logger = logging.getLogger(__name__)
 
