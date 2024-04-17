@@ -1,7 +1,6 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import asyncio
 import logging
 from pathlib import Path
 
@@ -24,10 +23,10 @@ RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
 
 @pytest.fixture(scope="module", autouse=True)
-async def build_and_deploy(ops_test: OpsTest):
-    """Build the charm-under-test and deploy it."""
+async def deploy(ops_test: OpsTest, request):
+    """Deploy charm-under-test."""
     assert ops_test.model
-    charm_build = asyncio.create_task(ops_test.build_charm("."))
+    charm = Path(request.config.getoption("--charm_path")).resolve()
     await ops_test.model.deploy(
         TLS_PROVIDER_CHARM_NAME,
         application_name=TLS_PROVIDER_CHARM_NAME,
@@ -43,7 +42,6 @@ async def build_and_deploy(ops_test: OpsTest):
         application_name=TLS_REQUIRER2,
         channel="edge",
     )
-    charm = await charm_build
     await ops_test.model.deploy(
         charm,
         application_name=APPLICATION_NAME,
