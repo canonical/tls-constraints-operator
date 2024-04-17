@@ -204,7 +204,7 @@ class TestCharm(unittest.TestCase):
                 *[
                     json.loads(
                         self.harness.get_relation_data(requirer_relation_id, f"{appname}/{i}").get(
-                            "certificate_signing_requests"
+                            "certificate_signing_requests", ""
                         )
                     )
                     for i in range(2)
