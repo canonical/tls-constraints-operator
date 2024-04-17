@@ -131,6 +131,12 @@ async def test_given_tls_requirer1_has_first_csr_constraint_then_second_csr_reje
     assert action_output1.get("certificate") is None
 
 
+async def test_given_tls_requirer1_has_allow_challenges_then_requests_filtered_correctly(
+    ops_test: OpsTest,
+):
+    pass
+
+
 async def run_get_certificate_action(
     ops_test: OpsTest, app_name: str, unit_number: int = 0
 ) -> dict:
