@@ -49,6 +49,17 @@ class CsrFilter(Protocol):
         ...
 
 
+class LimitToOneRequest:
+    """Filter the CSR so as to only allow a single request from any relation ID."""
+
+    def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
+        """Accept CSR if its the first CSR of a relation or the renewal of the existing CSR."""
+        relevant_csrs = [csr for csr in requirer_csrs if csr.relation_id == relation_id]
+        if len(relevant_csrs) > 1:
+            return False
+        return True
+
+
 class TLSConstraintsCharm(CharmBase):
     """Main class to handle Juju events."""
 
@@ -56,10 +67,12 @@ class TLSConstraintsCharm(CharmBase):
         """Set up charm integration handlers and observe Juju events."""
         super().__init__(*args)
         self.certificates_provider = TLSCertificatesRequiresV3(
-            self, RELATION_NAME_TO_TLS_PROVIDER,
+            self,
+            RELATION_NAME_TO_TLS_PROVIDER,
         )
         self.certificates_requirers = TLSCertificatesProvidesV3(
-            self, RELATION_NAME_TO_TLS_REQUIRER,
+            self,
+            RELATION_NAME_TO_TLS_REQUIRER,
         )
         self.framework.observe(self.on.install, self._update_status)
         self.framework.observe(self.on.update_status, self._update_status)
@@ -125,13 +138,11 @@ class TLSConstraintsCharm(CharmBase):
             return
         csr = event.certificate_signing_request.encode()
         if self._is_certificate_allowed(csr, event.relation_id):
-            self.certificates_provider.request_certificate_creation(
-                csr, event.is_ca
-            )
+            self.certificates_provider.request_certificate_creation(csr, event.is_ca)
         else:
             logger.warn(
                 "Certificate Request for relation ID %d was denied. Details in previous logs.",
-                event.relation_id
+                event.relation_id,
             )
 
     def _on_certificate_revocation_request(self, event: CertificateRevocationRequestEvent) -> None:
@@ -253,8 +264,7 @@ class TLSConstraintsCharm(CharmBase):
         """
         filters = self._get_csr_filters()
         all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
-        if not all(filter.evaluate(csr, relation_id, all_requirers_csrs)
-                   for filter in filters):
+        if not all(filter.evaluate(csr, relation_id, all_requirers_csrs) for filter in filters):
             return False
         return True
 
@@ -266,7 +276,11 @@ class TLSConstraintsCharm(CharmBase):
         Returns:
             list of CsrFilters to apply
         """
-        return []
+        filters = []
+        if self.config.get("limit-to-one-request", None):
+            filters.append(LimitToOneRequest())
+
+        return filters
 
 
 if __name__ == "__main__":

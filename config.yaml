@@ -1,0 +1,6 @@
+options:
+  limit-to-one-request:
+    default: False
+    type: boolean
+    description: |
+      Limit to one request will only allow a single CSR from any requirer
