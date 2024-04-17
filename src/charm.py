@@ -128,6 +128,11 @@ class TLSConstraintsCharm(CharmBase):
             self.certificates_provider.request_certificate_creation(
                 csr, event.is_ca
             )
+        else:
+            logger.warn(
+                "Certificate Request for relation ID %d was denied. Details in previous logs.",
+                event.relation_id
+            )
 
     def _on_certificate_revocation_request(self, event: CertificateRevocationRequestEvent) -> None:
         """Handle certificate revocation request events.
