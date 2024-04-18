@@ -1,4 +1,9 @@
 options:
+  limit-to-first-requester:
+    default: True
+    type: boolean
+    description: |
+      Limit requested identifiers (hostnames, IPs and OIDs) to first requester
   limit-to-one-request:
     default: False
     type: boolean
