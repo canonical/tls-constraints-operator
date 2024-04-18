@@ -30,23 +30,22 @@ async def deploy(ops_test: OpsTest, request):
     await ops_test.model.deploy(
         TLS_PROVIDER_CHARM_NAME,
         application_name=TLS_PROVIDER_CHARM_NAME,
-        channel="edge",
+        channel="stable",
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER1,
-        channel="edge",
+        channel="stable",
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER2,
-        channel="edge",
+        channel="stable",
     )
     await ops_test.model.deploy(
         charm,
         application_name=APPLICATION_NAME,
         series="jammy",
-        trust=True,
     )
 
 
