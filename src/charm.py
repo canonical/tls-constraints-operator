@@ -76,7 +76,7 @@ class AllowedFields:
     def __init__(self, filters: dict):
         self.field_filters = filters
 
-    def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
+    def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:  # noqa: C901
         """Accept CSR only if the given CSR passes the field regex matches."""
         csr_object = x509.load_pem_x509_csr(csr)
         san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
@@ -95,7 +95,6 @@ class AllowedFields:
                 if not pattern.match(str(ip)):
                     logger.warning("IP validation failed in csr from relation id %s", relation_id)
                     return False
-            pass
         if challenge := self.field_filters.get("allowed-oids"):
             pattern = re.compile(challenge)
             oid_list = san.get_values_for_type(x509.RegisteredID)
@@ -150,7 +149,6 @@ class AllowedFields:
                         "Country code validation failed in csr from relation id %s", relation_id
                     )
                     return False
-            pass
         return True
 
 
