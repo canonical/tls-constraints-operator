@@ -2,10 +2,10 @@
 # See LICENSE file for licensing details.
 import itertools
 import json
-import unittest
 from unittest.mock import Mock
 
-from charm import LimitToOneRequest, TLSConstraintsCharm, logger
+import pytest
+from charm import LimitToOneRequest, TLSConstraintsCharm
 from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
@@ -31,20 +31,22 @@ def get_json_csr_list(csr: str = "test_csr", is_ca: bool = False):
     )
 
 
-class TestCharm(unittest.TestCase):
-    def setUp(self) -> None:
+class TestCharm:
+    @pytest.fixture(scope="function", autouse=True)
+    def setUp(self):
         self.harness = testing.Harness(TLSConstraintsCharm)
-        self.addCleanup(self.harness.cleanup)
         self.harness.set_leader(True)
         self.harness.begin()
+        yield
+        self.harness.cleanup
 
     def test_given_not_related_to_provider_when_on_install_then_status_is_blocked(
         self,
     ) -> None:
         self.harness.charm.on.install.emit()
-        self.assertEqual(
-            BlockedStatus("Need a relation to a TLS certificates provider"),
-            self.harness.charm.unit.status,
+        assert (
+            BlockedStatus("Need a relation to a TLS certificates provider")
+            == self.harness.charm.unit.status
         )
 
     def test_given_installed_when_related_to_tls_provider_then_status_is_active(
@@ -52,19 +54,16 @@ class TestCharm(unittest.TestCase):
     ) -> None:
         self._integrate_provider()
 
-        self.assertEqual(
-            ActiveStatus(),
-            self.harness.charm.unit.status,
-        )
+        assert ActiveStatus() == self.harness.charm.unit.status
 
     def test_given_provider_not_related_when_related_to_requirer_then_status_is_blocked(
         self,
     ) -> None:
         self._integrate_requirer()
 
-        self.assertEqual(
-            BlockedStatus("Need a relation to a TLS certificates provider"),
-            self.harness.charm.unit.status,
+        assert (
+            BlockedStatus("Need a relation to a TLS certificates provider")
+            == self.harness.charm.unit.status
         )
 
     def test_given_no_provider_related_when_requirer_requests_certificate_then_status_is_blocked(
@@ -74,9 +73,9 @@ class TestCharm(unittest.TestCase):
 
         self.harness.charm._on_certificate_creation_request(event=Mock())
 
-        self.assertEqual(
-            BlockedStatus("Need a relation to a TLS certificates provider"),
-            self.harness.charm.unit.status,
+        assert (
+            BlockedStatus("Need a relation to a TLS certificates provider")
+            == self.harness.charm.unit.status
         )
 
     def test_given_no_provider_related_when_requirer_requests_certificate_then_event_is_defered(  # noqa: E501
@@ -91,7 +90,7 @@ class TestCharm(unittest.TestCase):
         )
         self.harness.charm._on_certificate_creation_request(event=event)
 
-        self.assertTrue(event.deferred)
+        assert event.deferred
 
     def test_given_provider_related_when_requirer_requests_certificate_then_csr_is_forwarded_to_provider(  # noqa: E501
         self,
@@ -109,9 +108,9 @@ class TestCharm(unittest.TestCase):
         requested_csrs = (
             self.harness.charm.certificates_provider.get_certificate_signing_requests()
         )
-        self.assertEqual(len(requested_csrs), 1)
-        self.assertEqual(requested_csrs[0].csr, "test_csr")
-        self.assertFalse(requested_csrs[0].is_ca)
+        assert len(requested_csrs) == 1
+        assert requested_csrs[0].csr == "test_csr"
+        assert not requested_csrs[0].is_ca
 
     def test_given_no_provider_related_and_active_status_when_requirer_requests_certificate_revocation_then_status_is_blocked(  # noqa: E501
         self,
@@ -120,9 +119,9 @@ class TestCharm(unittest.TestCase):
 
         self.harness.charm._on_certificate_revocation_request(event=Mock())
 
-        self.assertEqual(
-            BlockedStatus("Need a relation to a TLS certificates provider"),
-            self.harness.charm.unit.status,
+        assert (
+            BlockedStatus("Need a relation to a TLS certificates provider")
+            == self.harness.charm.unit.status
         )
 
     def test_given_provider_related_when_requirer_requests_certificate_revocation_then_revocation_is_forwarded_to_provider(  # noqa: E501
@@ -149,7 +148,7 @@ class TestCharm(unittest.TestCase):
         requested_csrs = (
             self.harness.charm.certificates_provider.get_certificate_signing_requests()
         )
-        self.assertEqual(len(requested_csrs), 0)
+        assert len(requested_csrs) == 0
 
     def test_given_requirer_requested_certificate_when_certificate_available_then_certificate_is_forwarded_to_requirer(  # noqa: E501
         self,
@@ -175,8 +174,8 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(requirers_certificates[0].csr, "test_csr")
-        self.assertEqual(requirers_certificates[0].certificate, "test_cert")
+        assert requirers_certificates[0].csr == "test_csr"
+        assert requirers_certificates[0].certificate == "test_cert"
 
     def test_given_limit_to_one_request_set_when_second_certificate_requested_then_certificate_not_generated(  # noqa: E501
         self,
@@ -220,7 +219,7 @@ class TestCharm(unittest.TestCase):
         assert len(certificates_passed_along) == 1
 
     def test_given_no_requested_certificate_when_certificate_available_then_error_is_logged(
-        self,
+        self, caplog
     ) -> None:
         self._integrate_provider()
         self._integrate_requirer()
@@ -232,13 +231,13 @@ class TestCharm(unittest.TestCase):
             ca="test_ca",
             chain=["test_ca", "test_intermediate"],
         )
-        with self.assertLogs(logger, level="ERROR") as logs:
-            self.harness.charm._on_certificate_available(event=available_event)
+        self.harness.charm._on_certificate_available(event=available_event)
 
-        self.assertIn("ERROR:charm:Could not find the relation for CSR: test_csr.", logs.output)
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("ERROR", "charm", "Could not find the relation for CSR: test_csr.") in logs
 
     def test_given_duplicate_requested_certificate_when_certificate_available_then_error_is_logged(
-        self,
+        self, caplog
     ) -> None:
         self._integrate_provider()
         requirer1_relation_id = self._integrate_requirer()
@@ -261,13 +260,14 @@ class TestCharm(unittest.TestCase):
             ca="test_ca",
             chain=["test_ca", "test_intermediate"],
         )
-        with self.assertLogs(logger, level="ERROR") as logs:
-            self.harness.charm._on_certificate_available(event=available_event)
+        self.harness.charm._on_certificate_available(event=available_event)
 
-        self.assertIn(
-            "ERROR:charm:Multiple requirers have the same CSR. Cannot choose one between relation IDs: {1, 2}",  # noqa: E501
-            logs.output,
-        )
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert (
+            "ERROR",
+            "charm",
+            "Multiple requirers have the same CSR. Cannot choose one between relation IDs: {1, 2}",
+        ) in logs
 
     def test_given_provided_certificate_when_certificate_invalidated_then_invalidation_is_sent_to_requester(  # noqa: E501
         self,
@@ -291,7 +291,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates), 1)
+        assert len(requirers_certificates) == 1
 
         invalidated_event = CertificateInvalidatedEvent(
             handle=Mock(),
@@ -306,7 +306,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates), 0)
+        assert len(requirers_certificates) == 0
 
     def test_given_provided_certificate_when_certificate_expired_then_event_is_ignored(
         self,
@@ -330,7 +330,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates), 1)
+        assert len(requirers_certificates) == 1
 
         invalidated_event = CertificateInvalidatedEvent(
             handle=Mock(),
@@ -345,7 +345,7 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        self.assertEqual(len(requirers_certificates), 1)
+        assert len(requirers_certificates) == 1
 
     def test_given_multiple_provided_certificate_when_all_certificates_invalidated_then_all_certificates_are_removed(  # noqa: E501
         self,
@@ -383,14 +383,14 @@ class TestCharm(unittest.TestCase):
         requirers_certificates = (
             self.harness.charm.certificates_requirers.get_issued_certificates()
         )
-        self.assertEqual(len(requirers_certificates), 2)
+        assert len(requirers_certificates) == 2
 
         self.harness.remove_relation(provider_relation_id)
 
         requirers_certificates = (
             self.harness.charm.certificates_requirers.get_issued_certificates()
         )
-        self.assertEqual(len(requirers_certificates), 0)
+        assert len(requirers_certificates) == 0
 
     def _integrate_provider(self) -> int:
         provider_relation_id = self.harness.add_relation(
