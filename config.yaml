@@ -9,7 +9,7 @@ options:
     default: ""
     type: string
     description: |
-      Regex for describing custom filtering options for DNS's. Ex: "myapp(-[0-9]+)?\.mycompany.com"
+      Regex for describing custom filtering options for DNS's. Ex: "myapp-([0-9]+)?\.mycompany\.com"
   allowed-ips:
     default: ""
     type: string
@@ -19,19 +19,19 @@ options:
     default: ""
     type: string
     description: |
-      Regex for describing custom filtering options for OID's. Ex: "1.3.6.1.4.1.28978.[0-9.]"
+      Regex for describing custom filtering options for OID's. Ex: "1\.3\.6\.1\.4\.1\.28978\.[0-9.]*"
   allowed-organization:
     default: ""
     type: string
     description: |
-      Regex for describing custom filtering options for organizations. Ex: "Canonical Ltd."
+      Regex for describing custom filtering options for organizations. Ex: "Canonical Ltd\."
   allowed-email:
     default: ""
     type: string
     description: |
-      Regex for describing custom filtering options for emails. Ex: ".*@canonical.com"
+      Regex for describing custom filtering options for emails. Ex: ".*@canonical\.com"
   allowed-country-code:
     default: ""
     type: string
     description: |
-      Regex for describing custom filtering options for country codes. Ex: "(UK|CA|PL|AE|HU|FR|TR|IT)$"
+      Regex for describing custom filtering options for country codes. Ex: "(UK|US|CA|PL|AE|HU|FR|TR|IT)$"

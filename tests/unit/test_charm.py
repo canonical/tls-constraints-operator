@@ -12,6 +12,8 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateInvalidatedEvent,
     CertificateRevocationRequestEvent,
     RequirerCSR,
+    generate_csr,
+    generate_private_key,
 )
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus
@@ -472,11 +474,11 @@ class TestCharm:
     ) -> None:
         self.harness.update_config(
             {
-                "allowed-dns": "myapp(-[0-9]+)?\.mycompany.com",
-                "allowed-ips": "172\.25\.0\.[0-9]*",
-                "allowed-oids": "1.3.6.1.4.1.28978.[0-9.]*",
-                "allowed-organization": "Canonical Ltd.",
-                "allowed-email": ".*@canonical.com",
+                "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",
+                "allowed-ips": r"172\.25\.0\.[0-9]*",
+                "allowed-oids": r"1\.3\.6\.1\.4\.1\.28978\.[0-9.]*",
+                "allowed-organization": r"Canonical Ltd\.",
+                "allowed-email": r".*@canonical\.com",
                 "allowed-country-code": "(UK|CA|PL|AE|HU|FR|TR|IT)$",
             }
         )
@@ -486,19 +488,115 @@ class TestCharm:
     def test_given_allowlist_config_filter_when_config_set_then_filter_applied_properly(  # noqa: E501
         self,
     ) -> None:
-        # Create a CSR that fits the following config
-        csr = ""
+        # TODO: parametrize csr generating fields
+        valid_csr = generate_csr(
+            subject="myapp-1.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Ltd.",
+            email_address="me@canonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
+
+        dns_not_valid_csr = generate_csr(
+            subject="notmyapp.mycompany.com",
+            sans_dns=["notmyapp.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Ltd.",
+            email_address="me@canonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
+        ip_not_valid_csr = generate_csr(
+            subject="myapp-1.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["127.0.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Ltd.",
+            email_address="me@canonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
+        oid_not_valid_csr = generate_csr(
+            subject="myapp-1.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.2897.3"],
+            organization="Canonical Ltd.",
+            email_address="me@canonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
+        organization_not_valid_csr = generate_csr(
+            subject="myapp-1.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Inc.",
+            email_address="me@canonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
+        email_not_valid_csr = generate_csr(
+            subject="myapp-1.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Ltd.",
+            email_address="me@notcanonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
+        country_code_not_valid_csr = generate_csr(
+            subject="myapp-1.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Ltd.",
+            email_address="me@canonical.com",
+            country_name="TG",
+            private_key=generate_private_key(),
+        )
+
         rules = {
-            "allowed-dns": "myapp(-[0-9]+)?\.mycompany.com",
-            "allowed-ips": "172\.25\.0\.[0-9]*",
-            "allowed-oids": "1.3.6.1.4.1.28978.[0-9.]*",
-            "allowed-organization": "Canonical Ltd.",
-            "allowed-email": ".*@canonical.com",
-            "allowed-country-code": "(UK|CA|PL|AE|HU|FR|TR|IT)$",
+            "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",
+            "allowed-ips": r"172\.25\.0\.[0-9]*",
+            "allowed-oids": r"1\.3\.6\.1\.4\.1\.28978\.[0-9.]*",
+            "allowed-organization": r"Canonical Ltd\.",
+            "allowed-email": r".*@canonical\.com",
+            "allowed-country-code": r"(UK|US|CA|PL|AE|HU|FR|TR|IT)$",
         }
         filter = AllowedFields(rules)
 
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(csr, 1, []) is True
+        assert filter.evaluate(valid_csr, 1, []) is True
 
-        self.assertIn("ERROR:charm:Could not find the relation for CSR: test_csr.", logs.output)
+        with self.assertLogs(logger, level="WARNING") as logs:
+            assert filter.evaluate(dns_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:DNS validation failed in csr from relation id 1", logs.output
+            )
+            assert filter.evaluate(ip_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:IP validation failed in csr from relation id 1", logs.output
+            )
+            assert filter.evaluate(oid_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:OID validation failed in csr from relation id 1", logs.output
+            )
+            assert filter.evaluate(organization_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:Organization validation failed in csr from relation id 1",
+                logs.output,
+            )
+            assert filter.evaluate(email_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:Email validation failed in csr from relation id 1", logs.output
+            )
+            assert filter.evaluate(country_code_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:Country code validation failed in csr from relation id 1",
+                logs.output,
+            )

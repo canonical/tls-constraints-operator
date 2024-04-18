@@ -69,34 +69,87 @@ class LimitToOneRequest:
 class AllowedFields:
     """Filter the CSR so as to only allow CSRs that match the given regexes for the CSR fields."""
 
+    EMAIL_SUBJECT_NAME = "1.2.840.113549.1.9.1"
+    ORGANIZATION_SUBJECT_NAME = "O"
+    COUNTRY_CODE_SUBJECT_NAME = "C"
+
     def __init__(self, filters: dict):
         self.field_filters = filters
 
     def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
         """Accept CSR only if the given CSR passes the field regex matches."""
         csr_object = x509.load_pem_x509_csr(csr)
-        if challenge := self.field_filters.get("dns"):
+        san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        subject = csr_object.subject
+        if challenge := self.field_filters.get("allowed-dns"):
             pattern = re.compile(challenge)
-            dns_list = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-            print(dns_list)
+            dns_list = san.get_values_for_type(x509.DNSName)
             for dns in dns_list:
                 if not pattern.match(dns):
-                    logger.warning("DNS filter failed on relation id %s", relation_id)
+                    logger.warning("DNS validation failed in csr from relation id %s", relation_id)
                     return False
-        if challenge := self.field_filters.get("ips"):
+        if challenge := self.field_filters.get("allowed-ips"):
             pattern = re.compile(challenge)
+            ip_list = san.get_values_for_type(x509.IPAddress)
+            for ip in ip_list:
+                if not pattern.match(str(ip)):
+                    logger.warning("IP validation failed in csr from relation id %s", relation_id)
+                    return False
             pass
-        if challenge := self.field_filters.get("oids"):
+        if challenge := self.field_filters.get("allowed-oids"):
             pattern = re.compile(challenge)
-            pass
-        if challenge := self.field_filters.get("organization"):
+            oid_list = san.get_values_for_type(x509.RegisteredID)
+            for oid in oid_list:
+                if not pattern.match(oid.dotted_string):
+                    logger.warning("OID validation failed in csr from relation id %s", relation_id)
+                    return False
+        if challenge := self.field_filters.get("allowed-organization"):
             pattern = re.compile(challenge)
-            pass
-        if challenge := self.field_filters.get("email"):
+            if not any(
+                rdn.rfc4514_string().startswith(self.ORGANIZATION_SUBJECT_NAME)
+                for rdn in subject.rdns
+            ):
+                logger.warning("Organization not found in csr from relation id %s")
+                return False
+            for relative_distinguished_name in subject.rdns:
+                name, value = relative_distinguished_name.rfc4514_string().split("=", 2)
+                if name == self.ORGANIZATION_SUBJECT_NAME and not pattern.match(value):
+                    logger.warning(
+                        "Organization validation failed in csr from relation id %s", relation_id
+                    )
+                    return False
+
+        if challenge := self.field_filters.get("allowed-email"):
             pattern = re.compile(challenge)
-            pass
-        if challenge := self.field_filters.get("country-code"):
+            if not any(
+                rdn.rfc4514_string().startswith(self.EMAIL_SUBJECT_NAME) for rdn in subject.rdns
+            ):
+                logger.warning("Email not found in csr from relation id %s")
+                return False
+            for relative_distinguished_name in subject.rdns:
+                name, value = relative_distinguished_name.rfc4514_string().split("=", 2)
+                if name == self.EMAIL_SUBJECT_NAME and not pattern.match(value):
+                    logger.warning(
+                        "Email validation failed in csr from relation id %s", relation_id
+                    )
+                    return False
+        if challenge := self.field_filters.get("allowed-country-code"):
             pattern = re.compile(challenge)
+            if not any(
+                rdn.rfc4514_string().startswith(self.COUNTRY_CODE_SUBJECT_NAME)
+                for rdn in subject.rdns
+            ):
+                logger.warning("Country code not found in csr from relation id %s")
+                return False
+            for relative_distinguished_name in subject.rdns:
+                name, value = relative_distinguished_name.rfc4514_string().split("=", 2)
+                logger.warning(name)
+                logger.warning(value)
+                if name == self.COUNTRY_CODE_SUBJECT_NAME and not pattern.match(value):
+                    logger.warning(
+                        "Country code validation failed in csr from relation id %s", relation_id
+                    )
+                    return False
             pass
         return True
 
