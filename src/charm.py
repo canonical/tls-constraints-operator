@@ -8,7 +8,8 @@ Certificates are provided by the operator through Juju configs.
 """
 
 import logging
-from typing import Optional, Protocol
+from itertools import chain
+from typing import Mapping, Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
@@ -20,6 +21,8 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     TLSCertificatesProvidesV3,
     TLSCertificatesRequiresV3,
 )
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
@@ -61,6 +64,52 @@ class LimitToOneRequest:
                 relation_id,
             )
             return False
+        return True
+
+
+class LimitToFirstRequester:
+    """Filter the CSR as to only allow the first requester to get a specific identifier."""
+
+    DENY_MSG = "CSR denied for relation ID %d, %s '%s' already requested."
+
+    def __init__(self, reserved_identifiers: Mapping):
+        self._reserved_identifiers = reserved_identifiers
+
+    def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
+        """Accept the CSR if no other relation previously requested any covered identifiers.
+
+        Identifiers that need to be unique are the Subject, all Subject Alternative Names,
+        all Subject Alternative IPs and all Subject Alternative OIDs.
+        """
+        csr_object = x509.load_pem_x509_csr(csr)
+        subjects = [
+            cn.value for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+        ]
+        san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
+            if (
+                dns in self._reserved_identifiers.get("dns", {})
+                and self._reserved_identifiers["dns"][dns] != relation_id
+            ):
+                logger.warning(self.DENY_MSG, relation_id, "DNS", dns)
+                return False
+        for ip in chain(san.get_values_for_type(x509.IPAddress), subjects):
+            if (
+                str(ip) in self._reserved_identifiers.get("ip", {})
+                and self._reserved_identifiers["ip"][str(ip)] != relation_id
+            ):
+                logger.warning(self.DENY_MSG, relation_id, "IP", ip)
+                return False
+        for oid in chain(
+            (getattr(o, "dotted_string", "") for o in san.get_values_for_type(x509.RegisteredID)),
+            subjects
+        ):
+            if (
+                oid in self._reserved_identifiers.get("oid", {})
+                and self._reserved_identifiers["oid"][oid] != relation_id
+            ):
+                logger.warning(self.DENY_MSG, relation_id, "OID", oid)
+                return False
         return True
 
 
@@ -283,6 +332,8 @@ class TLSConstraintsCharm(CharmBase):
         filters = []
         if self.config.get("limit-to-one-request", None):
             filters.append(LimitToOneRequest())
+        if self.config.get("limit-to-first-requester", False):
+            filters.append(LimitToFirstRequester({}))
 
         return filters
 
