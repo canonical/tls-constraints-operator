@@ -5,7 +5,7 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from charm import AllowedFields, LimitToOneRequest, TLSConstraintsCharm, logger
+from charm import AllowedFields, LimitToOneRequest, TLSConstraintsCharm
 from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
@@ -221,7 +221,7 @@ class TestCharm:
         assert len(certificates_passed_along) == 1
 
     def test_given_no_requested_certificate_when_certificate_available_then_error_is_logged(
-        self, caplog
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
         self._integrate_provider()
         self._integrate_requirer()
@@ -239,7 +239,7 @@ class TestCharm:
         assert ("ERROR", "charm", "Could not find the relation for CSR: test_csr.") in logs
 
     def test_given_duplicate_requested_certificate_when_certificate_available_then_error_is_logged(
-        self, caplog
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
         self._integrate_provider()
         requirer1_relation_id = self._integrate_requirer()
@@ -487,7 +487,7 @@ class TestCharm:
         assert isinstance(self.harness.charm._get_csr_filters()[0], AllowedFields)
 
     def test_given_allowlist_config_filter_when_config_set_then_filter_applied_properly(  # noqa: E501
-        self,
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
         # TODO: parametrize csr generating fields
         valid_csr = generate_csr(
@@ -585,36 +585,37 @@ class TestCharm:
 
         assert filter.evaluate(valid_csr, 1, []) is True
 
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(dns_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:error with dns in san: field validation failed", logs.output
-            )
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(ip_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:error with ip in san: field validation failed", logs.output
-            )
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(oid_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:error with oid in san: field validation failed", logs.output
-            )
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(common_name_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:error with common name: field validation failed", logs.output
-            )
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(organization_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:error with organization: field validation failed", logs.output
-            )
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(email_not_valid_csr, 1, []) is False
-            self.assertIn("WARNING:charm:error with email: field validation failed", logs.output)
-        with self.assertLogs(logger, level="WARNING") as logs:
-            assert filter.evaluate(country_code_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:error with country code: field validation failed", logs.output
-            )
+        assert filter.evaluate(dns_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with dns in san: field validation failed") in logs
+        caplog.clear()
+
+        assert filter.evaluate(ip_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with ip in san: field validation failed") in logs
+        caplog.clear()
+
+        assert filter.evaluate(oid_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with oid in san: field validation failed") in logs
+        caplog.clear()
+
+        assert filter.evaluate(common_name_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with common name: field validation failed") in logs
+        caplog.clear()
+
+        assert filter.evaluate(organization_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with organization: field validation failed") in logs
+        caplog.clear()
+
+        assert filter.evaluate(email_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with email: field validation failed") in logs
+        caplog.clear()
+
+        assert filter.evaluate(country_code_not_valid_csr, 1, []) is False
+        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
+        assert ("WARNING", "charm", "error with country code: field validation failed") in logs
+        caplog.clear()
