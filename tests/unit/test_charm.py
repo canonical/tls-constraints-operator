@@ -576,27 +576,28 @@ class TestCharm:
         with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(dns_not_valid_csr, 1, []) is False
             self.assertIn(
-                "WARNING:charm:DNS validation failed in csr from relation id 1", logs.output
+                "WARNING:charm:error with dns in san: field validation failed", logs.output
             )
+        with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(ip_not_valid_csr, 1, []) is False
             self.assertIn(
-                "WARNING:charm:IP validation failed in csr from relation id 1", logs.output
+                "WARNING:charm:error with ip in san: field validation failed", logs.output
             )
+        with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(oid_not_valid_csr, 1, []) is False
             self.assertIn(
-                "WARNING:charm:OID validation failed in csr from relation id 1", logs.output
+                "WARNING:charm:error with oid in san: field validation failed", logs.output
             )
+        with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(organization_not_valid_csr, 1, []) is False
             self.assertIn(
-                "WARNING:charm:Organization validation failed in csr from relation id 1",
-                logs.output,
+                "WARNING:charm:error with organization: field validation failed", logs.output
             )
+        with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(email_not_valid_csr, 1, []) is False
-            self.assertIn(
-                "WARNING:charm:Email validation failed in csr from relation id 1", logs.output
-            )
+            self.assertIn("WARNING:charm:error with email: field validation failed", logs.output)
+        with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(country_code_not_valid_csr, 1, []) is False
             self.assertIn(
-                "WARNING:charm:Country code validation failed in csr from relation id 1",
-                logs.output,
+                "WARNING:charm:error with country code: field validation failed", logs.output
             )

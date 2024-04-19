@@ -9,7 +9,7 @@ Certificates are provided by the operator through Juju configs.
 
 import logging
 import re
-from typing import Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
@@ -69,79 +69,86 @@ class LimitToOneRequest:
 class AllowedFields:
     """Filter the CSR so as to only allow CSRs that match the given regexes for the CSR fields."""
 
-    EMAIL_SUBJECT_NAME = "1.2.840.113549.1.9.1"
-    ORGANIZATION_SUBJECT_NAME = "O"
-    COUNTRY_CODE_SUBJECT_NAME = "C"
+    DNS_OID = "???"
+    IP_OID = "???"
+    OID_OID = "???"
+    ORGANIZATION_OID = x509.NameOID.ORGANIZATION_NAME
+    EMAIL_OID = x509.NameOID.EMAIL_ADDRESS
+    COUNTRY_CODE_OID = x509.NameOID.COUNTRY_NAME
 
     def __init__(self, filters: dict):
         self.field_filters = filters
 
-    def _get_oid_value_from_subject(
-        self, rdns: list[x509.RelativeDistinguishedName], oid: str
-    ) -> str | None:
-        for relative_distinguished_name in rdns:
-            name, value = relative_distinguished_name.rfc4514_string().split("=", 2)
-            if name == oid:
-                return value
-        return None
+    def _evaluate_subject(
+        self,
+        challenge: str,
+        subject: x509.Name,
+        oid: x509.ObjectIdentifier,
+        field_optional: bool = False,
+    ) -> str:
+        pattern = re.compile(challenge)
+        name_attributes = subject.get_attributes_for_oid(oid)
+        if not field_optional and not name_attributes:
+            return "field not found"
+        if any(not pattern.match(val.value) for val in name_attributes):
+            return "field validation failed"
+        return ""
+
+    def _evaluate_sans(
+        self, challenge: str, san: x509.SubjectAlternativeName, type: Literal["dns", "ip", "oid"]
+    ) -> str:
+        pattern = re.compile(challenge)
+        match type:
+            case "dns":
+                dn_list = san.get_values_for_type(x509.DNSName)
+            case "ip":
+                dn_list = [str(val) for val in san.get_values_for_type(x509.IPAddress)]
+            case "oid":
+                dn_list = [val.dotted_string for val in san.get_values_for_type(x509.RegisteredID)]
+
+        for dn in dn_list:
+            if not pattern.match(dn):
+                return "field validation failed"
+        return ""
 
     def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:  # noqa: C901
         """Accept CSR only if the given CSR passes the field regex matches."""
         csr_object = x509.load_pem_x509_csr(csr)
         san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
         subject = csr_object.subject
+        errors = []
         if challenge := self.field_filters.get("allowed-dns"):
-            pattern = re.compile(challenge)
-            dns_list = san.get_values_for_type(x509.DNSName)
-            for dns in dns_list:
-                if not pattern.match(dns):
-                    logger.warning("DNS validation failed in csr from relation id %s", relation_id)
-                    return False
+            if err := self._evaluate_sans(challenge, san, "dns"):
+                errors.append(f"error with dns in san: {err}")
+            if err := self._evaluate_subject(challenge, subject, self.DNS_OID, True):
+                errors.append(f"error with dns in subject: {err}")
         if challenge := self.field_filters.get("allowed-ips"):
-            pattern = re.compile(challenge)
-            ip_list = san.get_values_for_type(x509.IPAddress)
-            for ip in ip_list:
-                if not pattern.match(str(ip)):
-                    logger.warning("IP validation failed in csr from relation id %s", relation_id)
-                    return False
+            if err := self._evaluate_sans(challenge, san, "ip"):
+                errors.append(f"error with ip in san: {err}")
+            if err := self._evaluate_subject(challenge, subject, self.IP_OID, True):
+                errors.append(f"error with ip in subject: {err}")
         if challenge := self.field_filters.get("allowed-oids"):
-            pattern = re.compile(challenge)
-            oid_list = san.get_values_for_type(x509.RegisteredID)
-            for oid in oid_list:
-                if not pattern.match(oid.dotted_string):
-                    logger.warning("OID validation failed in csr from relation id %s", relation_id)
-                    return False
+            if err := self._evaluate_sans(challenge, san, "oid"):
+                errors.append(f"error with oid in san: {err}")
+            if err := self._evaluate_subject(challenge, subject, self.OID_OID, True):
+                errors.append(f"error with oid in subject: {err}")
         if challenge := self.field_filters.get("allowed-organization"):
-            pattern = re.compile(challenge)
-            org = self._get_oid_value_from_subject(subject.rdns, self.ORGANIZATION_SUBJECT_NAME)
-            if not org:
-                logger.warning("Organization not found in csr from relation id %s")
-                return False
-            if not pattern.match(org):
-                logger.warning(
-                    "Organization validation failed in csr from relation id %s", relation_id
-                )
-                return False
+            if err := self._evaluate_subject(challenge, subject, self.ORGANIZATION_OID):
+                errors.append(f"error with organization: {err}")
         if challenge := self.field_filters.get("allowed-email"):
-            pattern = re.compile(challenge)
-            email = self._get_oid_value_from_subject(subject.rdns, self.EMAIL_SUBJECT_NAME)
-            if not email:
-                logger.warning("Email not found in csr from relation id %s")
-                return False
-            if not pattern.match(email):
-                logger.warning("Email validation failed in csr from relation id %s", relation_id)
-                return False
+            if err := self._evaluate_subject(challenge, subject, self.EMAIL_OID):
+                errors.append(f"error with email: {err}")
         if challenge := self.field_filters.get("allowed-country-code"):
-            pattern = re.compile(challenge)
-            cc = self._get_oid_value_from_subject(subject.rdns, self.COUNTRY_CODE_SUBJECT_NAME)
-            if not cc:
-                logger.warning("Country code not found in csr from relation id %s")
-                return False
-            if not pattern.match(cc):
-                logger.warning(
-                    "Country code validation failed in csr from relation id %s", relation_id
-                )
-                return False
+            if err := self._evaluate_subject(challenge, subject, self.COUNTRY_CODE_OID):
+                errors.append(f"error with country code: {err}")
+        if errors:
+            logger.warning(
+                "CSR from relation id %s failed regex validation for the following fields:",
+                relation_id,
+            )
+            for err in errors:
+                logger.warning("%s", err)
+            return False
         return True
 
 
