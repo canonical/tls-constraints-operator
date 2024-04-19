@@ -69,12 +69,10 @@ class LimitToOneRequest:
 class AllowedFields:
     """Filter the CSR so as to only allow CSRs that match the given regexes for the CSR fields."""
 
-    DNS_OID = "???"
-    IP_OID = "???"
-    OID_OID = "???"
-    ORGANIZATION_OID = x509.NameOID.ORGANIZATION_NAME
-    EMAIL_OID = x509.NameOID.EMAIL_ADDRESS
-    COUNTRY_CODE_OID = x509.NameOID.COUNTRY_NAME
+    COMMON_NAME_OID = x509.OID_COMMON_NAME
+    ORGANIZATION_OID = x509.OID_ORGANIZATION_NAME
+    EMAIL_OID = x509.OID_EMAIL_ADDRESS
+    COUNTRY_CODE_OID = x509.OID_COUNTRY_NAME
 
     def __init__(self, filters: dict):
         self.field_filters = filters
@@ -90,7 +88,7 @@ class AllowedFields:
         name_attributes = subject.get_attributes_for_oid(oid)
         if not field_optional and not name_attributes:
             return "field not found"
-        if any(not pattern.match(val.value) for val in name_attributes):
+        if any(not pattern.match(str(val.value)) for val in name_attributes):
             return "field validation failed"
         return ""
 
@@ -120,18 +118,15 @@ class AllowedFields:
         if challenge := self.field_filters.get("allowed-dns"):
             if err := self._evaluate_sans(challenge, san, "dns"):
                 errors.append(f"error with dns in san: {err}")
-            if err := self._evaluate_subject(challenge, subject, self.DNS_OID, True):
-                errors.append(f"error with dns in subject: {err}")
         if challenge := self.field_filters.get("allowed-ips"):
             if err := self._evaluate_sans(challenge, san, "ip"):
                 errors.append(f"error with ip in san: {err}")
-            if err := self._evaluate_subject(challenge, subject, self.IP_OID, True):
-                errors.append(f"error with ip in subject: {err}")
         if challenge := self.field_filters.get("allowed-oids"):
             if err := self._evaluate_sans(challenge, san, "oid"):
                 errors.append(f"error with oid in san: {err}")
-            if err := self._evaluate_subject(challenge, subject, self.OID_OID, True):
-                errors.append(f"error with oid in subject: {err}")
+        if challenge := self.field_filters.get("allowed-common-name"):
+            if err := self._evaluate_subject(challenge, subject, self.COMMON_NAME_OID):
+                errors.append(f"error with common name: {err}")
         if challenge := self.field_filters.get("allowed-organization"):
             if err := self._evaluate_subject(challenge, subject, self.ORGANIZATION_OID):
                 errors.append(f"error with organization: {err}")
@@ -377,6 +372,7 @@ class TLSConstraintsCharm(CharmBase):
             "allowed-dns",
             "allowed-ips",
             "allowed-oids",
+            "allowed-common-name",
             "allowed-organizations",
             "allowed-email",
             "allowed-country-code",

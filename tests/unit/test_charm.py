@@ -477,6 +477,7 @@ class TestCharm:
                 "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",
                 "allowed-ips": r"172\.25\.0\.[0-9]*",
                 "allowed-oids": r"1\.3\.6\.1\.4\.1\.28978\.[0-9.]*",
+                "allowed-common-name": r"myapp-([0-9]+)?\.mycompany\.com",
                 "allowed-organization": r"Canonical Ltd\.",
                 "allowed-email": r".*@canonical\.com",
                 "allowed-country-code": "(UK|CA|PL|AE|HU|FR|TR|IT)$",
@@ -530,6 +531,16 @@ class TestCharm:
             country_name="US",
             private_key=generate_private_key(),
         )
+        common_name_not_valid_csr = generate_csr(
+            subject="notmyapp.mycompany.com",
+            sans_dns=["myapp-1.mycompany.com"],
+            sans_ip=["172.25.0.1"],
+            sans_oid=["1.3.6.1.4.1.28978.3"],
+            organization="Canonical Ltd.",
+            email_address="me@canonical.com",
+            country_name="US",
+            private_key=generate_private_key(),
+        )
         organization_not_valid_csr = generate_csr(
             subject="myapp-1.mycompany.com",
             sans_dns=["myapp-1.mycompany.com"],
@@ -565,6 +576,7 @@ class TestCharm:
             "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",
             "allowed-ips": r"172\.25\.0\.[0-9]*",
             "allowed-oids": r"1\.3\.6\.1\.4\.1\.28978\.[0-9.]*",
+            "allowed-common-name": r"myapp-([0-9]+)?\.mycompany\.com",
             "allowed-organization": r"Canonical Ltd\.",
             "allowed-email": r".*@canonical\.com",
             "allowed-country-code": r"(UK|US|CA|PL|AE|HU|FR|TR|IT)$",
@@ -587,6 +599,11 @@ class TestCharm:
             assert filter.evaluate(oid_not_valid_csr, 1, []) is False
             self.assertIn(
                 "WARNING:charm:error with oid in san: field validation failed", logs.output
+            )
+        with self.assertLogs(logger, level="WARNING") as logs:
+            assert filter.evaluate(common_name_not_valid_csr, 1, []) is False
+            self.assertIn(
+                "WARNING:charm:error with common name: field validation failed", logs.output
             )
         with self.assertLogs(logger, level="WARNING") as logs:
             assert filter.evaluate(organization_not_valid_csr, 1, []) is False

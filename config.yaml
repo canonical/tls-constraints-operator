@@ -20,6 +20,11 @@ options:
     type: string
     description: |
       Regex for describing custom filtering options for OID's. Ex: "1\.3\.6\.1\.4\.1\.28978\.[0-9.]*"
+  allowed-common-name:
+    default: ""
+    type: string
+    description: |
+      Regex for describing custom filtering options for common names. Ex: "myapp-([0-9]+)?\.mycompany\.com"
   allowed-organization:
     default: ""
     type: string
