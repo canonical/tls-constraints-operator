@@ -7,9 +7,10 @@
 Certificates are provided by the operator through Juju configs.
 """
 
+import json
 import logging
 from itertools import chain
-from typing import Mapping, Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
@@ -26,10 +27,11 @@ from cryptography.x509.oid import NameOID
 from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus
+from ops.model import ActiveStatus, BlockedStatus, Relation
 
 logger = logging.getLogger(__name__)
 
+PEER_RELATION_NAME = "reserved-identifiers"
 RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
 RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
@@ -51,6 +53,15 @@ class CsrFilter(Protocol):
         """
         ...
 
+    def callback(self, csr: bytes, relation_id: int) -> None:
+        """Take action if a CSR passed through all filters.
+
+        Args:
+            csr (bytes): The CSR that was allowed
+            relation_id (int): ID of the relation sending the CSR
+        """
+        ...
+
 
 class LimitToOneRequest:
     """Filter the CSR so as to only allow a single request from any relation ID."""
@@ -66,14 +77,45 @@ class LimitToOneRequest:
             return False
         return True
 
+    def callback(self, csr: bytes, relation_id: int) -> None:
+        """Stump for filter protocol."""
+        pass
+
 
 class LimitToFirstRequester:
     """Filter the CSR as to only allow the first requester to get a specific identifier."""
 
     DENY_MSG = "CSR denied for relation ID %d, %s '%s' already requested."
 
-    def __init__(self, reserved_identifiers: Mapping):
-        self._reserved_identifiers = reserved_identifiers
+    def __init__(self, relation: Relation | None):
+        self._relation = relation
+
+    def _get_reserved_identifiers(self) -> dict[Literal["dns", "ip", "oid"], dict[str, int]]:
+        if not self._relation:
+            return {}
+        return json.loads(
+            self._relation.data[self._relation.app].get("reserved-identifiers", "{}")
+        )
+
+    def _set_reserved_identifiers(self, new_mapping) -> None:
+        if not self._relation:
+            return
+        self._relation.data[self._relation.app]["reserved-identifiers"] = json.dumps(new_mapping)
+
+    def _update_reserved_identifier_mapping(self, csr: bytes, relation_id: int) -> None:
+        csr_object = x509.load_pem_x509_csr(csr)
+        san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        dnss = san.get_values_for_type(x509.DNSName)
+        ips = [str(ip) for ip in san.get_values_for_type(x509.IPAddress)]
+        oids = [oid.dotted_string for oid in san.get_values_for_type(x509.RegisteredID)]
+
+        cur_mapping = self._get_reserved_identifiers()
+
+        cur_mapping["dns"] = cur_mapping.get("dns", {}) | {dns: relation_id for dns in dnss}
+        cur_mapping["ip"] = cur_mapping.get("ip", {}) | {ip: relation_id for ip in ips}
+        cur_mapping["oid"] = cur_mapping.get("oid", {}) | {oid: relation_id for oid in oids}
+
+        self._set_reserved_identifiers(cur_mapping)
 
     def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
         """Accept the CSR if no other relation previously requested any covered identifiers.
@@ -81,36 +123,47 @@ class LimitToFirstRequester:
         Identifiers that need to be unique are the Subject, all Subject Alternative Names,
         all Subject Alternative IPs and all Subject Alternative OIDs.
         """
+        if not self._relation:
+            logger.error(
+                "LimitToFirstRequester can not access peer relation yet."
+                "denying all csrs until peer relation joined"
+            )
+            return False
         csr_object = x509.load_pem_x509_csr(csr)
         subjects = [
             cn.value for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
         ]
         san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        reserved_identifiers = self._get_reserved_identifiers()
         for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
             if (
-                dns in self._reserved_identifiers.get("dns", {})
-                and self._reserved_identifiers["dns"][dns] != relation_id
+                dns in reserved_identifiers.get("dns", {})
+                and reserved_identifiers["dns"][dns] != relation_id
             ):
                 logger.warning(self.DENY_MSG, relation_id, "DNS", dns)
                 return False
         for ip in chain(san.get_values_for_type(x509.IPAddress), subjects):
             if (
-                str(ip) in self._reserved_identifiers.get("ip", {})
-                and self._reserved_identifiers["ip"][str(ip)] != relation_id
+                str(ip) in reserved_identifiers.get("ip", {})
+                and reserved_identifiers["ip"][str(ip)] != relation_id
             ):
                 logger.warning(self.DENY_MSG, relation_id, "IP", ip)
                 return False
         for oid in chain(
             (getattr(o, "dotted_string", "") for o in san.get_values_for_type(x509.RegisteredID)),
-            subjects
+            subjects,
         ):
             if (
-                oid in self._reserved_identifiers.get("oid", {})
-                and self._reserved_identifiers["oid"][oid] != relation_id
+                oid in reserved_identifiers.get("oid", {})
+                and reserved_identifiers["oid"][oid] != relation_id
             ):
                 logger.warning(self.DENY_MSG, relation_id, "OID", oid)
                 return False
         return True
+
+    def callback(self, csr: bytes, relation_id: int) -> None:
+        """Reserve the mappings that were approved to be handled."""
+        self._update_reserved_identifier_mapping(csr, relation_id)
 
 
 class TLSConstraintsCharm(CharmBase):
@@ -319,6 +372,7 @@ class TLSConstraintsCharm(CharmBase):
         all_requirers_csrs = self.certificates_requirers.get_requirer_csrs()
         if not all(filter.evaluate(csr, relation_id, all_requirers_csrs) for filter in filters):
             return False
+        [filter.callback(csr, relation_id) for filter in filters]
         return True
 
     def _get_csr_filters(self) -> list[CsrFilter]:
@@ -333,7 +387,8 @@ class TLSConstraintsCharm(CharmBase):
         if self.config.get("limit-to-one-request", None):
             filters.append(LimitToOneRequest())
         if self.config.get("limit-to-first-requester", False):
-            filters.append(LimitToFirstRequester({}))
+            relation = self.model.get_relation(PEER_RELATION_NAME)
+            filters.append(LimitToFirstRequester(relation))
 
         return filters
 
