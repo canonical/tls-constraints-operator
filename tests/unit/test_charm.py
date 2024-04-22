@@ -39,8 +39,6 @@ class TestCharm:
         self.harness = testing.Harness(TLSConstraintsCharm)
         self.harness.set_leader(True)
         self.harness.begin()
-        yield
-        self.harness.cleanup
 
     def test_given_not_related_to_provider_when_on_install_then_status_is_blocked(
         self,
