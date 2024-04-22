@@ -486,92 +486,17 @@ class TestCharm:
         assert len(self.harness.charm._get_csr_filters()) > 0
         assert isinstance(self.harness.charm._get_csr_filters()[0], AllowedFields)
 
-    def test_given_allowlist_config_filter_when_config_set_then_filter_applied_properly(  # noqa: E501
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        # TODO: parametrize csr generating fields
-        valid_csr = generate_csr(
-            subject="myapp-1.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Ltd.",
-            email_address="me@canonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-
-        dns_not_valid_csr = generate_csr(
-            subject="notmyapp.mycompany.com",
-            sans_dns=["notmyapp.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Ltd.",
-            email_address="me@canonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-        ip_not_valid_csr = generate_csr(
-            subject="myapp-1.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["127.0.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Ltd.",
-            email_address="me@canonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-        oid_not_valid_csr = generate_csr(
-            subject="myapp-1.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.2897.3"],
-            organization="Canonical Ltd.",
-            email_address="me@canonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-        common_name_not_valid_csr = generate_csr(
-            subject="notmyapp.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Ltd.",
-            email_address="me@canonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-        organization_not_valid_csr = generate_csr(
-            subject="myapp-1.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Inc.",
-            email_address="me@canonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-        email_not_valid_csr = generate_csr(
-            subject="myapp-1.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Ltd.",
-            email_address="me@notcanonical.com",
-            country_name="US",
-            private_key=generate_private_key(),
-        )
-        country_code_not_valid_csr = generate_csr(
-            subject="myapp-1.mycompany.com",
-            sans_dns=["myapp-1.mycompany.com"],
-            sans_ip=["172.25.0.1"],
-            sans_oid=["1.3.6.1.4.1.28978.3"],
-            organization="Canonical Ltd.",
-            email_address="me@canonical.com",
-            country_name="TG",
-            private_key=generate_private_key(),
-        )
-
+    def test_given_allowlist_config_filter_when_given_correct_csr_then_filter_passed(self):
+        csr_options = {
+            "subject": "myapp-1.mycompany.com",
+            "sans_dns": ["myapp-1.mycompany.com"],
+            "sans_ip": ["172.25.0.1"],
+            "sans_oid": ["1.3.6.1.4.1.28978.3"],
+            "organization": "Canonical Ltd.",
+            "email_address": "me@canonical.com",
+            "country_name": "US",
+            "private_key": generate_private_key(),
+        }
         rules = {
             "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",
             "allowed-ips": r"172\.25\.0\.[0-9]*",
@@ -581,41 +506,70 @@ class TestCharm:
             "allowed-email": r".*@canonical\.com",
             "allowed-country-code": r"(UK|US|CA|PL|AE|HU|FR|TR|IT)$",
         }
-        filter = AllowedFields(rules)
 
+        filter = AllowedFields(rules)
+        valid_csr = generate_csr(**csr_options)
         assert filter.evaluate(valid_csr, 1, []) is True
 
-        assert filter.evaluate(dns_not_valid_csr, 1, []) is False
-        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with dns in san: field validation failed") in logs
-        caplog.clear()
+    @pytest.mark.parametrize(
+        "invalid_field,expected_log_message",
+        [
+            (
+                {"subject": "notmyapp.mycompany.com"},
+                "error with common name: field validation failed",
+            ),
+            (
+                {"sans_dns": ["notmyapp.mycompany.com"]},
+                "error with dns in san: field validation failed",
+            ),
+            (
+                {"sans_ip": ["127.0.0.1"]},
+                "error with ip in san: field validation failed",
+            ),
+            (
+                {"sans_oid": ["1.3.6.1.4.1.2897.3"]},
+                "error with oid in san: field validation failed",
+            ),
+            (
+                {"organization": "Canonical Inc."},
+                "error with organization: field validation failed",
+            ),
+            (
+                {"email_address": "me@notcanonical.com"},
+                "error with email address: field validation failed",
+            ),
+            (
+                {"country_name": "TG"},
+                "error with country code: field validation failed",
+            ),
+        ],
+    )
+    def test_given_allowlist_config_filter_when_invalid_csr_given_then_csr_filtered(
+        self, caplog: pytest.LogCaptureFixture, invalid_field, expected_log_message
+    ) -> None:
+        rules = {
+            "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",
+            "allowed-ips": r"172\.25\.0\.[0-9]*",
+            "allowed-oids": r"1\.3\.6\.1\.4\.1\.28978\.[0-9.]*",
+            "allowed-common-name": r"myapp-([0-9]+)?\.mycompany\.com",
+            "allowed-organization": r"Canonical Ltd\.",
+            "allowed-email": r".*@canonical\.com",
+            "allowed-country-code": r"(UK|US|CA|PL|AE|HU|FR|TR|IT)$",
+        }
+        csr_options = {
+            "subject": "myapp-1.mycompany.com",
+            "sans_dns": ["myapp-1.mycompany.com"],
+            "sans_ip": ["172.25.0.1"],
+            "sans_oid": ["1.3.6.1.4.1.28978.3"],
+            "organization": "Canonical Ltd.",
+            "email_address": "me@canonical.com",
+            "country_name": "US",
+            "private_key": generate_private_key(),
+        }
+        filter = AllowedFields(rules)
+        csr_options.update(invalid_field)
+        invalid_csr = generate_csr(**csr_options)
 
-        assert filter.evaluate(ip_not_valid_csr, 1, []) is False
+        assert filter.evaluate(invalid_csr, 1, []) is False
         logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with ip in san: field validation failed") in logs
-        caplog.clear()
-
-        assert filter.evaluate(oid_not_valid_csr, 1, []) is False
-        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with oid in san: field validation failed") in logs
-        caplog.clear()
-
-        assert filter.evaluate(common_name_not_valid_csr, 1, []) is False
-        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with common name: field validation failed") in logs
-        caplog.clear()
-
-        assert filter.evaluate(organization_not_valid_csr, 1, []) is False
-        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with organization: field validation failed") in logs
-        caplog.clear()
-
-        assert filter.evaluate(email_not_valid_csr, 1, []) is False
-        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with email: field validation failed") in logs
-        caplog.clear()
-
-        assert filter.evaluate(country_code_not_valid_csr, 1, []) is False
-        logs = [(record.levelname, record.module, record.message) for record in caplog.records]
-        assert ("WARNING", "charm", "error with country code: field validation failed") in logs
-        caplog.clear()
+        assert ("WARNING", "charm", expected_log_message) in logs

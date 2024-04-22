@@ -132,7 +132,7 @@ class AllowedFields:
                 errors.append(f"error with organization: {err}")
         if challenge := self.field_filters.get("allowed-email"):
             if err := self._evaluate_subject(challenge, subject, self.EMAIL_OID):
-                errors.append(f"error with email: {err}")
+                errors.append(f"error with email address: {err}")
         if challenge := self.field_filters.get("allowed-country-code"):
             if err := self._evaluate_subject(challenge, subject, self.COUNTRY_CODE_OID):
                 errors.append(f"error with country code: {err}")
