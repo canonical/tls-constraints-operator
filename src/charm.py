@@ -89,7 +89,10 @@ class LimitToFirstRequester:
         subjects = [
             cn.value for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
         ]
-        san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        try:
+            san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        except x509.ExtensionNotFound:
+            san = x509.SubjectAlternativeName([])
         for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
             if (dns in self._registered_dns and self._registered_dns[dns] != relation_id):
                 logger.warning(self.DENY_MSG, relation_id, "DNS", dns)

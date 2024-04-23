@@ -160,3 +160,14 @@ class TestLimitToFirstRequester:
         filter.evaluate(CSR, MY_RELATION_ID, [])
         logs = [(record.levelname, record.module, record.message) for record in caplog.records]
         assert len(logs) == 0
+
+    def test_given_csr_without_sans_extension_when_evaluate_then_does_not_crash(self):
+        csr = generate_csr(
+            private_key=PRIVATE_KEY,
+            subject=REQUESTED_SUBJECT,
+            organization="Example inc.",
+            email_address="admin@example.com",
+            country_name="CA",
+        )
+        filter = LimitToFirstRequester(registered_dns={}, registered_ips={}, registered_oids={})
+        assert filter.evaluate(csr, MY_RELATION_ID, []) is True
