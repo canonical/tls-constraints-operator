@@ -33,119 +33,112 @@ CSR = generate_csr(
 class TestLimitToFirstRequester:
 
     @pytest.mark.parametrize(
-        "requested_identifiers,expected",
+        "dns,ip,oid,expected",
         [
-            pytest.param({}, True, id="no_previous_requesters"),
-            pytest.param({"dns": {}, "ip": {}, "oid": {}}, True, id="empty_previous_requesters"),
+            pytest.param({}, {}, {}, True, id="no_previous_requesters"),
             pytest.param(
                 {
-                    "dns": {
-                        "pizza.example.com": OTHER_RELATION_ID,
-                        "poulah.example.com": OTHER_RELATION_ID,
-                    },
-                    "ip": {
-                        "1.1.1.1": OTHER_RELATION_ID,
-                        "192.168.0.1": OTHER_RELATION_ID,
-                    },
-                    "oid": {
-                        "1.2.3.4.42.500": OTHER_RELATION_ID,
-                        "1.2.3.4.42.120.55": OTHER_RELATION_ID,
-                    }
+                    "pizza.example.com": OTHER_RELATION_ID,
+                    "poulah.example.com": OTHER_RELATION_ID,
+                },
+                {
+                    "1.1.1.1": OTHER_RELATION_ID,
+                    "192.168.0.1": OTHER_RELATION_ID,
+                },
+                {
+                    "1.2.3.4.42.500": OTHER_RELATION_ID,
+                    "1.2.3.4.42.120.55": OTHER_RELATION_ID,
                 },
                 True,
                 id="previous_requesters_do_not_match"
             ),
             pytest.param(
-                {
-                    "dns": {REQUESTED_SUBJECT: OTHER_RELATION_ID},
-                    "ip": {},
-                    "oid": {}
-                },
+                {REQUESTED_SUBJECT: OTHER_RELATION_ID},
+                {},
+                {},
                 False,
                 id="dns_subject_previously_requested",
             ),
             pytest.param(
-                {"dns": {REQUESTED_SUBJECT: MY_RELATION_ID}, "ip": {}, "oid": {}},
+                {REQUESTED_SUBJECT: MY_RELATION_ID}, {}, {},
                 True,
                 id="dns_subject_previously_requested_by_us",
             ),
             pytest.param(
-                {"dns": {choice(REQUESTED_DNS): OTHER_RELATION_ID}, "ip": {}, "oid": {}},
+                {choice(REQUESTED_DNS): OTHER_RELATION_ID}, {}, {},
                 False,
                 id="dns_san_previously_requested",
             ),
             pytest.param(
-                {"dns": {choice(REQUESTED_DNS): MY_RELATION_ID}, "ip": {}, "oid": {}},
+                {choice(REQUESTED_DNS): MY_RELATION_ID}, {}, {},
                 True,
                 id="ip_san_previously_requested_by_us",
             ),
             pytest.param(
-                {"dns": {}, "ip": {REQUESTED_SUBJECT: OTHER_RELATION_ID}, "oid": {}},
+                {}, {REQUESTED_SUBJECT: OTHER_RELATION_ID}, {},
                 False,
                 id="ip_subject_previously_requested",
             ),
             pytest.param(
-                {"dns": {}, "ip": {REQUESTED_SUBJECT: MY_RELATION_ID}, "oid": {}},
+                {}, {REQUESTED_SUBJECT: MY_RELATION_ID}, {},
                 True,
                 id="ip_subject_previously_requested_by_us",
             ),
             pytest.param(
-                {"dns": {}, "ip": {choice(REQUESTED_IPS): OTHER_RELATION_ID}, "oid": {}},
+                {}, {choice(REQUESTED_IPS): OTHER_RELATION_ID}, {},
                 False,
                 id="ip_san_previously_requested",
             ),
             pytest.param(
-                {"dns": {}, "ip": {choice(REQUESTED_IPS): MY_RELATION_ID}, "oid": {}},
+                {}, {choice(REQUESTED_IPS): MY_RELATION_ID}, {},
                 True,
                 id="ip_san_previously_requested_by_us",
             ),
             pytest.param(
-                {"dns": {}, "ip": {}, "oid": {REQUESTED_SUBJECT: OTHER_RELATION_ID}},
+                {}, {}, {REQUESTED_SUBJECT: OTHER_RELATION_ID},
                 False,
                 id="oid_subject_previously_requested",
             ),
             pytest.param(
-                {"dns": {}, "ip": {}, "oid": {REQUESTED_SUBJECT: MY_RELATION_ID}},
+                {}, {}, {REQUESTED_SUBJECT: MY_RELATION_ID},
                 True,
                 id="oid_subject_previously_requested_by_us",
             ),
             pytest.param(
-                {"dns": {}, "ip": {}, "oid": {choice(REQUESTED_OIDS): OTHER_RELATION_ID}},
+                {}, {}, {choice(REQUESTED_OIDS): OTHER_RELATION_ID},
                 False,
                 id="oid_san_previously_requested",
             ),
             pytest.param(
-                {"dns": {}, "ip": {}, "oid": {choice(REQUESTED_OIDS): MY_RELATION_ID}},
+                {}, {}, {choice(REQUESTED_OIDS): MY_RELATION_ID},
                 True,
                 id="oid_san_previously_requested_by_us",
             ),
         ],
     )
     def test_given_previous_requesters_when_evaluate_csr_then_csr_is_allowed_or_denied(
-        self,
-        requested_identifiers,
-        expected
+        self, dns, ip, oid, expected
     ):
-        filter = LimitToFirstRequester(requested_identifiers)
+        filter = LimitToFirstRequester(registered_dns=dns, registered_ips=ip, registered_oids=oid)
         assert filter.evaluate(CSR, MY_RELATION_ID, []) is expected
 
     @pytest.mark.parametrize(
-        "requested_identifiers,expected",
+        "dns,ip,oid,expected",
         [
             pytest.param(
-                {"dns": {REQUESTED_SUBJECT: OTHER_RELATION_ID}, "ip": {}, "oid": {}},
+                {REQUESTED_SUBJECT: OTHER_RELATION_ID}, {}, {},
                 f"CSR denied for relation ID {MY_RELATION_ID}, "
                 + f"DNS '{REQUESTED_SUBJECT}' already requested.",
                 id="dns_san_previously_requested",
             ),
             pytest.param(
-                {"dns": {}, "ip": {REQUESTED_SUBJECT: OTHER_RELATION_ID}, "oid": {}},
+                {}, {REQUESTED_SUBJECT: OTHER_RELATION_ID}, {},
                 f"CSR denied for relation ID {MY_RELATION_ID}, "
                 + f"IP '{REQUESTED_SUBJECT}' already requested.",
                 id="ip_subject_previously_requested",
             ),
             pytest.param(
-                {"dns": {}, "ip": {}, "oid": {REQUESTED_SUBJECT: OTHER_RELATION_ID}},
+                {}, {}, {REQUESTED_SUBJECT: OTHER_RELATION_ID},
                 f"CSR denied for relation ID {MY_RELATION_ID}, "
                 + f"OID '{REQUESTED_SUBJECT}' already requested.",
                 id="oid_san_previously_requested",
@@ -153,21 +146,17 @@ class TestLimitToFirstRequester:
         ],
     )
     def test_given_previous_requesters_when_evaluate_csr_then_denials_are_logged(
-        self,
-        requested_identifiers,
-        expected,
-        caplog
+        self, dns, ip, oid, expected, caplog
     ):
-        filter = LimitToFirstRequester(requested_identifiers)
+        filter = LimitToFirstRequester(registered_dns=dns, registered_ips=ip, registered_oids=oid)
         filter.evaluate(CSR, MY_RELATION_ID, [])
         logs = [(record.levelname, record.module, record.message) for record in caplog.records]
         assert ("WARNING", "charm", expected) in logs
 
     def test_given_previous_requesters_when_evaluate_csr_then_approvals_are_not_logged(
-        self,
-        caplog
+        self, caplog
     ):
-        filter = LimitToFirstRequester({})
+        filter = LimitToFirstRequester(registered_dns={}, registered_ips={}, registered_oids={})
         filter.evaluate(CSR, MY_RELATION_ID, [])
         logs = [(record.levelname, record.module, record.message) for record in caplog.records]
         assert len(logs) == 0

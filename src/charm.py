@@ -72,8 +72,12 @@ class LimitToFirstRequester:
 
     DENY_MSG = "CSR denied for relation ID %d, %s '%s' already requested."
 
-    def __init__(self, reserved_identifiers: Mapping):
-        self._reserved_identifiers = reserved_identifiers
+    def __init__(
+        self, *, registered_dns: Mapping, registered_ips: Mapping, registered_oids: Mapping
+    ):
+        self._registered_dns = registered_dns
+        self._registered_ips = registered_ips
+        self._registered_oids = registered_oids
 
     def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
         """Accept the CSR if no other relation previously requested any covered identifiers.
@@ -87,27 +91,18 @@ class LimitToFirstRequester:
         ]
         san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
         for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
-            if (
-                dns in self._reserved_identifiers.get("dns", {})
-                and self._reserved_identifiers["dns"][dns] != relation_id
-            ):
+            if (dns in self._registered_dns and self._registered_dns[dns] != relation_id):
                 logger.warning(self.DENY_MSG, relation_id, "DNS", dns)
                 return False
         for ip in chain(san.get_values_for_type(x509.IPAddress), subjects):
-            if (
-                str(ip) in self._reserved_identifiers.get("ip", {})
-                and self._reserved_identifiers["ip"][str(ip)] != relation_id
-            ):
+            if (str(ip) in self._registered_ips and self._registered_ips[str(ip)] != relation_id):
                 logger.warning(self.DENY_MSG, relation_id, "IP", ip)
                 return False
         for oid in chain(
             (getattr(o, "dotted_string", "") for o in san.get_values_for_type(x509.RegisteredID)),
             subjects
         ):
-            if (
-                oid in self._reserved_identifiers.get("oid", {})
-                and self._reserved_identifiers["oid"][oid] != relation_id
-            ):
+            if (oid in self._registered_oids and self._registered_oids[oid] != relation_id):
                 logger.warning(self.DENY_MSG, relation_id, "OID", oid)
                 return False
         return True
@@ -333,7 +328,13 @@ class TLSConstraintsCharm(CharmBase):
         if self.config.get("limit-to-one-request", None):
             filters.append(LimitToOneRequest())
         if self.config.get("limit-to-first-requester", False):
-            filters.append(LimitToFirstRequester({}))
+            filters.append(
+                LimitToFirstRequester(
+                    registered_dns={},
+                    registered_ips={},
+                    registered_oids={}
+                )
+            )
 
         return filters
 
