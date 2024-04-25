@@ -4,7 +4,7 @@
 name: tls-constraints
 
 display-name: TLS Constraints
-docs: https://github.com/canonical/tls-constraints-operator/README.md
+docs: https://discourse.charmhub.io/t/tls-constraints-docs-index/14025
 description: |
   Charm for filtering CSRs that do not follow specified policy.
 summary: |
