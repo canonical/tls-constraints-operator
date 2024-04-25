@@ -112,7 +112,10 @@ class AllowedFields:
     def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:  # noqa: C901
         """Accept CSR only if the given CSR passes the field regex matches."""
         csr_object = x509.load_pem_x509_csr(csr)
-        san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        try:
+            san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        except x509.ExtensionNotFound:
+            san = x509.SubjectAlternativeName([])
         subject = csr_object.subject
         errors = []
         if challenge := self.field_filters.get("allowed-dns"):
