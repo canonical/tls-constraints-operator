@@ -5,7 +5,7 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from charm import LimitToOneRequest, TLSConstraintsCharm
+from charm import LimitToFirstRequester, LimitToOneRequest, TLSConstraintsCharm
 from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
@@ -36,6 +36,7 @@ class TestCharm:
     def setUp(self):
         self.harness = testing.Harness(TLSConstraintsCharm)
         self.harness.set_leader(True)
+        self.harness.update_config({"limit-to-first-requester": False})
         self.harness.begin()
         yield
         self.harness.cleanup
@@ -466,3 +467,11 @@ class TestCharm:
         ]
         filter = LimitToOneRequest()
         assert filter.evaluate(b"", 1, requirer_csrs) is False
+
+    def test_given_limit_to_first_requirer_filter_when_config_set_then_filter_available(  # noqa: E501
+        self,
+    ) -> None:
+        self._integrate_provider()
+        self.harness.update_config({"limit-to-first-requester": True})
+        assert len(self.harness.charm._get_csr_filters()) > 0
+        assert isinstance(self.harness.charm._get_csr_filters()[0], LimitToFirstRequester)
