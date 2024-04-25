@@ -5,7 +5,7 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from charm import LimitToFirstRequester, AllowedFields, LimitToOneRequest, TLSConstraintsCharm
+from charm import AllowedFields, LimitToFirstRequester, LimitToOneRequest, TLSConstraintsCharm
 from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateAvailableEvent,
     CertificateCreationRequestEvent,
