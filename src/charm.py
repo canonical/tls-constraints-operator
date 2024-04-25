@@ -8,8 +8,9 @@ Certificates are provided by the operator through Juju configs.
 """
 
 import logging
+import re
 from itertools import chain
-from typing import Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
@@ -96,11 +97,14 @@ class LimitToFirstRequester:
             relation_id = csr_to_id.get(allowed_csr.csr, None)
             csr_object = x509.load_pem_x509_csr(allowed_csr.csr.encode("utf-8"))
             subjects = [
-                cn.value for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+                cn.value
+                for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
                 if isinstance(cn.value, str)
             ]
             try:
-                san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value  # noqa: E501
+                san = csr_object.extensions.get_extension_for_class(
+                    x509.SubjectAlternativeName
+                ).value  # noqa: E501
             except x509.ExtensionNotFound:
                 san = x509.SubjectAlternativeName([])
             for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
@@ -108,8 +112,11 @@ class LimitToFirstRequester:
             for ip in chain(san.get_values_for_type(x509.IPAddress), subjects):
                 self._registered_ips[str(ip)] = relation_id
             for oid in chain(
-                (getattr(o, "dotted_string", "") for o in san.get_values_for_type(x509.RegisteredID)),  # noqa: E501
-                subjects
+                (
+                    getattr(o, "dotted_string", "")
+                    for o in san.get_values_for_type(x509.RegisteredID)
+                ),  # noqa: E501
+                subjects,
             ):
                 self._registered_oids[oid] = relation_id
 
@@ -129,20 +136,104 @@ class LimitToFirstRequester:
         except x509.ExtensionNotFound:
             san = x509.SubjectAlternativeName([])
         for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
-            if (dns in self._registered_dns and self._registered_dns[dns] != relation_id):
+            if dns in self._registered_dns and self._registered_dns[dns] != relation_id:
                 logger.warning(self.DENY_MSG, relation_id, "DNS", dns)
                 return False
         for ip in chain(san.get_values_for_type(x509.IPAddress), subjects):
-            if (str(ip) in self._registered_ips and self._registered_ips[str(ip)] != relation_id):
+            if str(ip) in self._registered_ips and self._registered_ips[str(ip)] != relation_id:
                 logger.warning(self.DENY_MSG, relation_id, "IP", ip)
                 return False
         for oid in chain(
             (getattr(o, "dotted_string", "") for o in san.get_values_for_type(x509.RegisteredID)),
-            subjects
+            subjects,
         ):
-            if (oid in self._registered_oids and self._registered_oids[oid] != relation_id):
+            if oid in self._registered_oids and self._registered_oids[oid] != relation_id:
                 logger.warning(self.DENY_MSG, relation_id, "OID", oid)
                 return False
+        return True
+
+
+class AllowedFields:
+    """Filter the CSR so as to only allow CSRs that match the given regexes for the CSR fields."""
+
+    COMMON_NAME_OID = x509.OID_COMMON_NAME
+    ORGANIZATION_OID = x509.OID_ORGANIZATION_NAME
+    EMAIL_OID = x509.OID_EMAIL_ADDRESS
+    COUNTRY_CODE_OID = x509.OID_COUNTRY_NAME
+
+    def __init__(self, filters: dict):
+        self.field_filters = filters
+
+    def _evaluate_subject(
+        self,
+        challenge: str,
+        subject: x509.Name,
+        oid: x509.ObjectIdentifier,
+        field_optional: bool = False,
+    ) -> str:
+        pattern = re.compile(challenge)
+        name_attributes = subject.get_attributes_for_oid(oid)
+        if not field_optional and not name_attributes:
+            return "field not found"
+        if any(not pattern.match(str(val.value)) for val in name_attributes):
+            return "field validation failed"
+        return ""
+
+    def _evaluate_sans(
+        self, challenge: str, san: x509.SubjectAlternativeName, type: Literal["dns", "ip", "oid"]
+    ) -> str:
+        pattern = re.compile(challenge)
+        match type:
+            case "dns":
+                dn_list = san.get_values_for_type(x509.DNSName)
+            case "ip":
+                dn_list = [str(val) for val in san.get_values_for_type(x509.IPAddress)]
+            case "oid":
+                dn_list = [val.dotted_string for val in san.get_values_for_type(x509.RegisteredID)]
+
+        for dn in dn_list:
+            if not pattern.match(dn):
+                return "field validation failed"
+        return ""
+
+    def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:  # noqa: C901
+        """Accept CSR only if the given CSR passes the field regex matches."""
+        csr_object = x509.load_pem_x509_csr(csr)
+        try:
+            san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        except x509.ExtensionNotFound:
+            san = x509.SubjectAlternativeName([])
+        subject = csr_object.subject
+        errors = []
+        if challenge := self.field_filters.get("allowed-dns"):
+            if err := self._evaluate_sans(challenge, san, "dns"):
+                errors.append(f"error with dns in san: {err}")
+        if challenge := self.field_filters.get("allowed-ips"):
+            if err := self._evaluate_sans(challenge, san, "ip"):
+                errors.append(f"error with ip in san: {err}")
+        if challenge := self.field_filters.get("allowed-oids"):
+            if err := self._evaluate_sans(challenge, san, "oid"):
+                errors.append(f"error with oid in san: {err}")
+        if challenge := self.field_filters.get("allowed-common-name"):
+            if err := self._evaluate_subject(challenge, subject, self.COMMON_NAME_OID):
+                errors.append(f"error with common name: {err}")
+        if challenge := self.field_filters.get("allowed-organization"):
+            if err := self._evaluate_subject(challenge, subject, self.ORGANIZATION_OID):
+                errors.append(f"error with organization: {err}")
+        if challenge := self.field_filters.get("allowed-email"):
+            if err := self._evaluate_subject(challenge, subject, self.EMAIL_OID):
+                errors.append(f"error with email address: {err}")
+        if challenge := self.field_filters.get("allowed-country-code"):
+            if err := self._evaluate_subject(challenge, subject, self.COUNTRY_CODE_OID):
+                errors.append(f"error with country code: {err}")
+        if errors:
+            logger.warning(
+                "CSR from relation id %s failed regex validation for the following fields:",
+                relation_id,
+            )
+            for err in errors:
+                logger.warning("%s", err)
+            return False
         return True
 
 
@@ -367,10 +458,23 @@ class TLSConstraintsCharm(CharmBase):
             filters.append(LimitToOneRequest())
         if self.config.get("limit-to-first-requester", False):
             filters.append(
-                LimitToFirstRequester(
-                    allowed_csrs=self.certificates_provider.get_requirer_csrs()
-                )
+                LimitToFirstRequester(allowed_csrs=self.certificates_provider.get_requirer_csrs())
             )
+
+        field_filters = {}
+        for challenge in (
+            "allowed-dns",
+            "allowed-ips",
+            "allowed-oids",
+            "allowed-common-name",
+            "allowed-organizations",
+            "allowed-email",
+            "allowed-country-code",
+        ):
+            if challenge := self.config.get(challenge):
+                field_filters[challenge] = challenge
+        if len(field_filters.items()) > 0:
+            filters.append(AllowedFields(field_filters))
 
         return filters
 
