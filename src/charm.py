@@ -9,7 +9,7 @@ Certificates are provided by the operator through Juju configs.
 
 import logging
 from itertools import chain
-from typing import Mapping, Optional, Protocol
+from typing import Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     AllCertificatesInvalidatedEvent,
@@ -72,12 +72,46 @@ class LimitToFirstRequester:
 
     DENY_MSG = "CSR denied for relation ID %d, %s '%s' already requested."
 
-    def __init__(
-        self, *, registered_dns: Mapping, registered_ips: Mapping, registered_oids: Mapping
-    ):
-        self._registered_dns = registered_dns
-        self._registered_ips = registered_ips
-        self._registered_oids = registered_oids
+    def __init__(self, *, allowed_csrs: list[RequirerCSR]):
+        self._allowed_csrs = allowed_csrs
+        self._registered_dns: dict[str, int | None] = {}
+        self._registered_ips: dict[str, int | None] = {}
+        self._registered_oids: dict[str, int | None] = {}
+
+    def _populate_previously_allowed_identifiers(self, requirer_csrs: list[RequirerCSR]) -> None:
+        """Populate the previously allowed identifiers mapping.
+
+        Goes through all the allowed CSRs, finding their DNS, IP and OIDs
+        and adding them to the lookup table with the relation ID of the
+        downstream relation that requested that CSR.
+
+        Args:
+            requirer_csrs: List of RequirerCSRs from the downstream relations
+        Return:
+            None
+        """
+        csr_to_id = {rc.csr: rc.relation_id for rc in requirer_csrs}
+
+        for allowed_csr in self._allowed_csrs:
+            relation_id = csr_to_id.get(allowed_csr.csr, None)
+            csr_object = x509.load_pem_x509_csr(allowed_csr.csr.encode("utf-8"))
+            subjects = [
+                cn.value for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+                if isinstance(cn.value, str)
+            ]
+            try:
+                san = csr_object.extensions.get_extension_for_class(x509.SubjectAlternativeName).value  # noqa: E501
+            except x509.ExtensionNotFound:
+                san = x509.SubjectAlternativeName([])
+            for dns in chain(san.get_values_for_type(x509.DNSName), subjects):
+                self._registered_dns[dns] = relation_id
+            for ip in chain(san.get_values_for_type(x509.IPAddress), subjects):
+                self._registered_ips[str(ip)] = relation_id
+            for oid in chain(
+                (getattr(o, "dotted_string", "") for o in san.get_values_for_type(x509.RegisteredID)),  # noqa: E501
+                subjects
+            ):
+                self._registered_oids[oid] = relation_id
 
     def evaluate(self, csr: bytes, relation_id: int, requirer_csrs: list[RequirerCSR]) -> bool:
         """Accept the CSR if no other relation previously requested any covered identifiers.
@@ -85,6 +119,7 @@ class LimitToFirstRequester:
         Identifiers that need to be unique are the Subject, all Subject Alternative Names,
         all Subject Alternative IPs and all Subject Alternative OIDs.
         """
+        self._populate_previously_allowed_identifiers(requirer_csrs)
         csr_object = x509.load_pem_x509_csr(csr)
         subjects = [
             cn.value for cn in csr_object.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
@@ -333,9 +368,7 @@ class TLSConstraintsCharm(CharmBase):
         if self.config.get("limit-to-first-requester", False):
             filters.append(
                 LimitToFirstRequester(
-                    registered_dns={},
-                    registered_ips={},
-                    registered_oids={}
+                    allowed_csrs=self.certificates_provider.get_requirer_csrs()
                 )
             )
 

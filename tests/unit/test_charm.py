@@ -471,6 +471,7 @@ class TestCharm:
     def test_given_limit_to_first_requirer_filter_when_config_set_then_filter_available(  # noqa: E501
         self,
     ) -> None:
+        self._integrate_provider()
         self.harness.update_config({"limit-to-first-requester": True})
         assert len(self.harness.charm._get_csr_filters()) > 0
         assert isinstance(self.harness.charm._get_csr_filters()[0], LimitToFirstRequester)
