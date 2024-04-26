@@ -471,10 +471,11 @@ class TLSConstraintsCharm(CharmBase):
             "allowed-email",
             "allowed-country-code",
         ):
-            if challenge := self.config.get(challenge):
-                field_filters[challenge] = challenge
+            if regex := self.config.get(challenge):
+                field_filters[challenge] = regex
         if len(field_filters.items()) > 0:
             filters.append(AllowedFields(field_filters))
+        logger.warning("Enabled filters: %s", filters)
 
         return filters
 
