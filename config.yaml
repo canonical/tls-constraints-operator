@@ -3,19 +3,8 @@ options:
     default: True
     type: boolean
     description: |
-      This filter is disabled by default, and can be enabled by setting the following config:
+      This filter is enabled by default
 
-      `juju config tls-constraints limit-to-one-request=True`
-      This filter only allows a single CSR to be forwarded to a provider for each application. This CSR can be switched out at any point and replaced with another, but only a single CSR from an application will ever be forwarded.
-
-      If this filter is enabled after multiple CSR’s have already been requested, the filter will deny any CSR until the number of CSR’s the requiring charm has requested is under 1.
-  limit-to-one-request:
-    default: False
-    type: boolean
-    description: |
-      This filter is enabled by default, and can be disabled by setting the following config:
-
-      `juju config tls-constraints limit-to-one-request=True`
       This filter looks at the DNS, IP and OID of the requested CSR, and reserves the field to the first application that requests it. This includes the value provided in the Common Name as well as in the Subject Alternative Name (SAN) field.
       
       Multiple units of the same application can request the same or different fields from each other, which will all be reserved to the application.
@@ -23,6 +12,15 @@ options:
       An application can release the reservation on their fields by withdrawing their CSR, in which case any other application can reserve the previously taken fields.
       
       If this option is enabled after multiple applications have requested the same SAN fields, the filter will block any new CSR from taking these fields, and will continue to block these fields until the number of requirers that share that fields falls below 1.
+  limit-to-one-request:
+    default: False
+    type: boolean
+    description: |
+      This filter is disabled by default.
+
+      This filter only allows a single CSR to be forwarded to a provider for each application. This CSR can be switched out at any point and replaced with another, but only a single CSR from an application will ever be forwarded.
+
+      If this filter is enabled after multiple CSR’s have already been requested, the filter will deny any CSR until the number of CSR’s the requiring charm has requested is under 1.
   allowed-dns:
     default: ""
     type: string
