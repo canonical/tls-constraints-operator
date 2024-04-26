@@ -18,6 +18,7 @@ TLS_PROVIDER_CHARM_NAME = "self-signed-certificates"
 TLS_REQUIRER_CHARM_NAME = "tls-certificates-requirer"
 TLS_REQUIRER1 = f"{TLS_REQUIRER_CHARM_NAME}1"
 TLS_REQUIRER2 = f"{TLS_REQUIRER_CHARM_NAME}2"
+TLS_REQUIRER3 = f"{TLS_REQUIRER_CHARM_NAME}3"
 RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
 RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
@@ -40,6 +41,11 @@ async def deploy(ops_test: OpsTest, request):
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER2,
+        channel="stable",
+    )
+    await ops_test.model.deploy(
+        TLS_REQUIRER_CHARM_NAME,
+        application_name=TLS_REQUIRER3,
         channel="stable",
     )
     await ops_test.model.deploy(
@@ -129,6 +135,26 @@ async def test_given_tls_requirer1_has_first_csr_constraint_then_second_csr_reje
 
     action_output1 = await run_get_certificate_action(ops_test, TLS_REQUIRER1, 1)
     assert action_output1.get("certificate") is None
+
+
+async def test_given_subject_regex_is_configured_when_requirer3_requests_cert_then_csr_rejected(
+    ops_test: OpsTest,
+):
+    assert ops_test.model
+    constraints_app = ops_test.model.applications[APPLICATION_NAME]
+    assert isinstance(constraints_app, Application)
+    await constraints_app.set_config({"allowed-common-name": "thisdoesnotmatch.*"})
+
+    await ops_test.model.integrate(
+        relation1=f"{APPLICATION_NAME}:{RELATION_NAME_TO_TLS_REQUIRER}",
+        relation2=TLS_REQUIRER3,
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[TLS_REQUIRER3, APPLICATION_NAME], status="active", timeout=1000
+    )
+
+    action_output = await run_get_certificate_action(ops_test, TLS_REQUIRER3)
+    assert action_output.get("certificate") is None
 
 
 async def run_get_certificate_action(
