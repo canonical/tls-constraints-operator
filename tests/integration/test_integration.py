@@ -19,6 +19,8 @@ TLS_REQUIRER_CHARM_NAME = "tls-certificates-requirer"
 TLS_REQUIRER1 = f"{TLS_REQUIRER_CHARM_NAME}1"
 TLS_REQUIRER2 = f"{TLS_REQUIRER_CHARM_NAME}2"
 TLS_REQUIRER3 = f"{TLS_REQUIRER_CHARM_NAME}3"
+TLS_REQUIRER4 = f"{TLS_REQUIRER_CHARM_NAME}4"
+TLS_REQUIRER5 = f"{TLS_REQUIRER_CHARM_NAME}5"
 RELATION_NAME_TO_TLS_REQUIRER = "certificates-downstream"
 RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
@@ -47,6 +49,18 @@ async def deploy(ops_test: OpsTest, request):
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER3,
         channel="stable",
+    )
+    await ops_test.model.deploy(
+        TLS_REQUIRER_CHARM_NAME,
+        application_name=TLS_REQUIRER4,
+        channel="stable",
+        config={"common_name": "reserved_name"},
+    )
+    await ops_test.model.deploy(
+        TLS_REQUIRER_CHARM_NAME,
+        application_name=TLS_REQUIRER5,
+        channel="stable",
+        config={"common_name": "reserved_name"},
     )
     await ops_test.model.deploy(
         charm,
@@ -135,6 +149,37 @@ async def test_given_tls_requirer1_has_first_csr_constraint_then_second_csr_reje
 
     action_output1 = await run_get_certificate_action(ops_test, TLS_REQUIRER1, 1)
     assert action_output1.get("certificate") is None
+
+
+async def test_given_limit_to_first_requester_enabled_and_requirer4_is_first_when_requirer5_requests_cert_then_csr_rejected(  # noqa E501
+    ops_test: OpsTest,
+):
+    assert ops_test.model
+    constraints_app = ops_test.model.applications[APPLICATION_NAME]
+    assert isinstance(constraints_app, Application)
+    await constraints_app.set_config({"limit-to-first-requester": "True"})
+
+    await ops_test.model.integrate(
+        relation1=f"{APPLICATION_NAME}:{RELATION_NAME_TO_TLS_REQUIRER}",
+        relation2=TLS_REQUIRER4,
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[TLS_REQUIRER4, APPLICATION_NAME], status="active", timeout=1000
+    )
+
+    action_output = await run_get_certificate_action(ops_test, TLS_REQUIRER4)
+    assert action_output.get("certificate") is not None
+
+    await ops_test.model.integrate(
+        relation1=f"{APPLICATION_NAME}:{RELATION_NAME_TO_TLS_REQUIRER}",
+        relation2=TLS_REQUIRER5,
+    )
+    await ops_test.model.wait_for_idle(
+        apps=[TLS_REQUIRER5, APPLICATION_NAME], status="active", timeout=1000
+    )
+
+    action_output = await run_get_certificate_action(ops_test, TLS_REQUIRER5)
+    assert action_output.get("certificate") is None
 
 
 async def test_given_subject_regex_is_configured_when_requirer3_requests_cert_then_csr_rejected(
