@@ -25,8 +25,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for DNS's.
-      `juju config tls-constraints allowed-dns="myapp-([0-9]+)?\.mycompany\.com"`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for DNS's. Ex: "myapp-([0-9]+)?\.mycompany\.com"`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
@@ -35,8 +34,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for IP's.
-      `juju config tls-constraints allowed-ips="172\.25\.0\.[0-9]*"`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for IP's. Ex: "172\.25\.0\.[0-9]*"`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
@@ -45,8 +43,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for OID's.
-      `juju config tls-constraints allowed-oids="1\.3\.6\.1\.4\.1\.28978\.[0-9.]*"`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for OID's. Ex: "1\.3\.6\.1\.4\.1\.28978\.[0-9.]*"`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
@@ -55,8 +52,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the common name.
-      `juju config tls-constraints allowed-common-name="myapp-([0-9]+)?\.mycompany\.com"`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the common name. Ex: "myapp-([0-9]+)?\.mycompany\.com"`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
@@ -65,8 +61,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the organization.
-      `juju config tls-constraints allowed-organization="Canonical Ltd\."`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the organization. Ex: "Canonical Ltd\."`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
@@ -75,8 +70,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the email address.
-      `juju config tls-constraints allowed-email=".*@canonical\.com"`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the email address. Ex: ".*@canonical\.com"`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
@@ -85,8 +79,7 @@ options:
     default: ""
     type: string
     description: |
-      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the country code.
-      `juju config tls-constraints allowed-country-code="(UK|US|CA|PL|AE|HU|FR|TR|IT)$"`
+      This filter is disabled by default, and can be enabled by setting a Regex for describing custom filtering options for the country code. Ex: "(UK|US|CA|PL|AE|HU|FR|TR|IT)$"`
 
       The filter needs to be provided a python style regex string that will be used to filter out CSR’s with fields that don’t match with the provided regex.
 
