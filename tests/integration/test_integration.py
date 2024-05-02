@@ -11,7 +11,7 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APPLICATION_NAME = METADATA["name"]
 
 TLS_PROVIDER_CHARM_NAME = "self-signed-certificates"
