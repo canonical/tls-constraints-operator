@@ -12,6 +12,8 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     CertificateInvalidatedEvent,
     CertificateRevocationRequestEvent,
     RequirerCSR,
+    generate_ca,
+    generate_certificate,
     generate_csr,
     generate_private_key,
 )
@@ -39,6 +41,18 @@ class TestCharm:
         self.harness = testing.Harness(TLSConstraintsCharm)
         self.harness.set_leader(True)
         self.harness.update_config({"limit-to-first-requester": False})
+        self.client_key = generate_private_key()
+        self.csr = generate_csr(private_key=self.client_key, subject="test_subject")
+        self.ca_key = generate_private_key()
+        self.ca_certificate = generate_ca(
+            private_key=self.ca_key,
+            subject="test_ca",
+        )
+        self.certificate = generate_certificate(
+            csr=self.csr,
+            ca=self.ca_certificate,
+            ca_key=self.ca_key,
+        )
         self.harness.begin()
 
     def test_given_not_related_to_provider_when_on_install_then_status_is_blocked(
@@ -156,27 +170,27 @@ class TestCharm:
     ) -> None:
         self._integrate_provider()
         requirer_relation_id = self._integrate_requirer()
-
         self.harness.update_relation_data(
             requirer_relation_id,
             "certificates-requirer/0",
-            key_values={"certificate_signing_requests": get_json_csr_list()},
+            key_values={
+                "certificate_signing_requests": get_json_csr_list(csr=self.csr.decode().strip())
+            },
         )
-
         available_event = CertificateAvailableEvent(
             handle=Mock(),
-            certificate_signing_request="test_csr",
-            certificate="test_cert",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=self.csr.decode().strip(),
+            certificate=self.certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_available(event=available_event)
 
         requirers_certificates = self.harness.charm.certificates_requirers.get_issued_certificates(
             requirer_relation_id
         )
-        assert requirers_certificates[0].csr == "test_csr"
-        assert requirers_certificates[0].certificate == "test_cert"
+        assert requirers_certificates[0].csr.strip() == self.csr.decode().strip()
+        assert requirers_certificates[0].certificate.strip() == self.certificate.decode().strip()
 
     def test_given_limit_to_one_request_set_when_second_certificate_requested_then_certificate_not_generated(  # noqa: E501
         self,
@@ -278,14 +292,16 @@ class TestCharm:
         self.harness.update_relation_data(
             requirer_relation_id,
             "certificates-requirer/0",
-            key_values={"certificate_signing_requests": get_json_csr_list()},
+            key_values={
+                "certificate_signing_requests": get_json_csr_list(csr=self.csr.decode().strip())
+            },
         )
         available_event = CertificateAvailableEvent(
             handle=Mock(),
-            certificate_signing_request="test_csr",
-            certificate="test_cert",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=self.csr.decode().strip(),
+            certificate=self.certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_available(event=available_event)
 
@@ -297,10 +313,10 @@ class TestCharm:
         invalidated_event = CertificateInvalidatedEvent(
             handle=Mock(),
             reason="revoked",
-            certificate_signing_request="test_csr",
-            certificate="test_cert",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=self.csr.decode().strip(),
+            certificate=self.certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_invalidated(event=invalidated_event)
 
@@ -317,14 +333,16 @@ class TestCharm:
         self.harness.update_relation_data(
             requirer_relation_id,
             "certificates-requirer/0",
-            key_values={"certificate_signing_requests": get_json_csr_list()},
+            key_values={
+                "certificate_signing_requests": get_json_csr_list(csr=self.csr.decode().strip())
+            },
         )
         available_event = CertificateAvailableEvent(
             handle=Mock(),
-            certificate_signing_request="test_csr",
-            certificate="test_cert",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=self.csr.decode().strip(),
+            certificate=self.certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_available(event=available_event)
 
@@ -336,10 +354,10 @@ class TestCharm:
         invalidated_event = CertificateInvalidatedEvent(
             handle=Mock(),
             reason="expired",
-            certificate_signing_request="test_csr",
-            certificate="test_cert",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=self.csr.decode().strip(),
+            certificate=self.certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_invalidated(event=invalidated_event)
 
@@ -356,28 +374,38 @@ class TestCharm:
         self.harness.update_relation_data(
             requirer1_relation_id,
             "certificates-requirer/0",
-            key_values={"certificate_signing_requests": get_json_csr_list("test_csr1")},
+            key_values={
+                "certificate_signing_requests": get_json_csr_list(csr=self.csr.decode().strip())
+            },
         )
         available_event = CertificateAvailableEvent(
             handle=Mock(),
-            certificate_signing_request="test_csr1",
-            certificate="test_cert1",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=self.csr.decode().strip(),
+            certificate=self.certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_available(event=available_event)
         requirer2_relation_id = self._integrate_requirer("certificates-requirer2")
+        new_csr = generate_csr(private_key=self.client_key, subject="test_subject2")
+        new_certificate = generate_certificate(
+            csr=new_csr,
+            ca=self.ca_certificate,
+            ca_key=self.ca_key,
+        )
         self.harness.update_relation_data(
             requirer2_relation_id,
             "certificates-requirer2/0",
-            key_values={"certificate_signing_requests": get_json_csr_list("test_csr2")},
+            key_values={
+                "certificate_signing_requests": get_json_csr_list(csr=new_csr.decode().strip())
+            },
         )
         available_event = CertificateAvailableEvent(
             handle=Mock(),
-            certificate_signing_request="test_csr2",
-            certificate="test_cert2",
-            ca="test_ca",
-            chain=["test_ca", "test_intermediate"],
+            certificate_signing_request=new_csr.decode().strip(),
+            certificate=new_certificate.decode().strip(),
+            ca=self.ca_certificate.decode().strip(),
+            chain=[self.ca_certificate.decode().strip()],
         )
         self.harness.charm._on_certificate_available(event=available_event)
 
