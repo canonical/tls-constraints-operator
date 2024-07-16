@@ -85,8 +85,9 @@ ALLOWED_CSRS = [
         application_name="other_app",
         unit_name="other_app/0",
         csr=csr.decode("utf-8"),
-        is_ca=False
-    ) for csr in RESERVED_CSRS
+        is_ca=False,
+    )
+    for csr in RESERVED_CSRS
 ]
 
 REQUIRER_CSRS = [
@@ -95,8 +96,9 @@ REQUIRER_CSRS = [
         application_name="other_app",
         unit_name="other_app/0",
         csr=csr.decode("utf-8"),
-        is_ca=False
-    ) for csr in RESERVED_CSRS
+        is_ca=False,
+    )
+    for csr in RESERVED_CSRS
 ]
 
 OLD_REQUIRER_CSR = RequirerCSR(
@@ -104,12 +106,11 @@ OLD_REQUIRER_CSR = RequirerCSR(
     application_name="my_app",
     unit_name="my_app/0",
     csr=OLD_CSR.decode("utf-8"),
-    is_ca=False
+    is_ca=False,
 )
 
 
 class TestLimitToFirstRequester:
-
     @pytest.mark.parametrize(
         "csr,relation_id,expected",
         [
@@ -136,7 +137,7 @@ class TestLimitToFirstRequester:
                 generate_csr(
                     private_key=PRIVATE_KEY,
                     subject=REQUESTED_SUBJECT,
-                    sans_dns=[choice(RESERVED_DNS)]
+                    sans_dns=[choice(RESERVED_DNS)],
                 ),
                 MY_RELATION_ID,
                 False,
@@ -146,7 +147,7 @@ class TestLimitToFirstRequester:
                 generate_csr(
                     private_key=PRIVATE_KEY,
                     subject=REQUESTED_SUBJECT,
-                    sans_ip=[choice(RESERVED_IPS)]
+                    sans_ip=[choice(RESERVED_IPS)],
                 ),
                 MY_RELATION_ID,
                 False,
@@ -156,7 +157,7 @@ class TestLimitToFirstRequester:
                 generate_csr(
                     private_key=PRIVATE_KEY,
                     subject=REQUESTED_SUBJECT,
-                    sans_oid=[choice(RESERVED_OIDS)]
+                    sans_oid=[choice(RESERVED_OIDS)],
                 ),
                 MY_RELATION_ID,
                 False,
@@ -184,7 +185,7 @@ class TestLimitToFirstRequester:
                 generate_csr(
                     private_key=PRIVATE_KEY,
                     subject=REQUESTED_SUBJECT,
-                    sans_dns=[choice(RESERVED_DNS)]
+                    sans_dns=[choice(RESERVED_DNS)],
                 ),
                 OTHER_RELATION_ID,
                 True,
@@ -194,7 +195,7 @@ class TestLimitToFirstRequester:
                 generate_csr(
                     private_key=PRIVATE_KEY,
                     subject=REQUESTED_SUBJECT,
-                    sans_ip=[choice(RESERVED_IPS)]
+                    sans_ip=[choice(RESERVED_IPS)],
                 ),
                 OTHER_RELATION_ID,
                 True,
@@ -204,7 +205,7 @@ class TestLimitToFirstRequester:
                 generate_csr(
                     private_key=PRIVATE_KEY,
                     subject=REQUESTED_SUBJECT,
-                    sans_oid=[choice(RESERVED_OIDS)]
+                    sans_oid=[choice(RESERVED_OIDS)],
                 ),
                 OTHER_RELATION_ID,
                 True,
