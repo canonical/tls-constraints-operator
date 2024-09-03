@@ -13,18 +13,13 @@ from itertools import chain
 from typing import Literal, Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
-    AllCertificatesInvalidatedEvent,
-    CertificateAvailableEvent,
-    CertificateCreationRequestEvent,
-    CertificateInvalidatedEvent,
-    CertificateRevocationRequestEvent,
     RequirerCSR,
     TLSCertificatesProvidesV3,
     TLSCertificatesRequiresV3,
 )
 from cryptography import x509
 from cryptography.x509.oid import NameOID
-from ops.charm import CharmBase
+from ops.charm import CharmBase, CollectStatusEvent
 from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus
@@ -251,154 +246,126 @@ class TLSConstraintsCharm(CharmBase):
             self,
             RELATION_NAME_TO_TLS_REQUIRER,
         )
-        self.framework.observe(self.on.install, self._update_status)
-        self.framework.observe(self.on.update_status, self._update_status)
-        self.framework.observe(self.on.certificates_upstream_relation_joined, self._update_status)
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
         self.framework.observe(
             self.on.certificates_downstream_relation_joined,
-            self._update_status,
+            self._configure,
+        )
+        self.framework.observe(
+            self.on.update_status,
+            self._configure,
         )
         self.framework.observe(
             self.certificates_requirers.on.certificate_creation_request,
-            self._on_certificate_creation_request,
+            self._configure,
         )
         self.framework.observe(
             self.certificates_requirers.on.certificate_revocation_request,
-            self._on_certificate_revocation_request,
+            self._configure,
         )
         self.framework.observe(
             self.certificates_provider.on.certificate_available,
-            self._on_certificate_available,
+            self._configure,
         )
         self.framework.observe(
             self.certificates_provider.on.certificate_invalidated,
-            self._on_certificate_invalidated,
+            self._configure,
         )
         self.framework.observe(
             self.certificates_provider.on.all_certificates_invalidated,
-            self._on_all_certificates_invalidated,
+            self._configure,
         )
 
-    def _update_status(self, event: EventBase) -> None:
+    def _on_collect_status(self, event: CollectStatusEvent) -> None:
         """Handle charm events that need to update the status.
 
         The charm will be in Active Status when related to a TLS Provider
         and Blocked status otherwise.
 
         Args:
-            event (EventBase): Juju event.
+            event (CollectStatusEvent): Juju event.
 
         Returns:
             None
         """
         if not self.model.get_relation(RELATION_NAME_TO_TLS_PROVIDER):
-            self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
+            event.add_status(BlockedStatus("Need a relation to a TLS certificates provider"))
             return
-        self.unit.status = ActiveStatus()
+        event.add_status(ActiveStatus())
 
-    def _on_certificate_creation_request(self, event: CertificateCreationRequestEvent) -> None:
-        """Handle certificate creation request events.
-
-        If a TLS provider is not integrated to this charm, the event will be
-        deferred and the status will be Blocked.
-        Otherwise, the request will be forwarded to the provider.
-
-        Args:
-            event (CertificateCreationRequestEvent): Event containing the request
-
-        Returns:
-            None
-        """
+    def _configure(self, _: EventBase):
         if not self.model.get_relation(RELATION_NAME_TO_TLS_PROVIDER):
-            event.defer()
-            self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
+            logger.info("Need a relation to a TLS certificates provider")
             return
-        csr = event.certificate_signing_request.encode()
-        if self._is_certificate_allowed(csr, event.relation_id):
-            self.certificates_provider.request_certificate_creation(csr, event.is_ca)
-        else:
-            logger.warning(
-                "Certificate Request for relation ID %d was denied. Details in previous logs.",
-                event.relation_id,
+        self._sync_certificate_creation_requests()
+        self._sync_certificate_revocation_requests()
+        self._sync_available_certificates()
+        self._sync_invalidated_certificates()
+
+    def _sync_certificate_creation_requests(self):
+        """Handle certificate creation requests.
+
+        Goes through all the outstanding certificate requests and
+        forwards them to the provider if they are allowed.
+        """
+        outstanding_requests = self.certificates_requirers.get_outstanding_certificate_requests()
+        for request in outstanding_requests:
+            csr = request.csr.encode()
+            if self._is_certificate_allowed(csr, request.relation_id):
+                self.certificates_provider.request_certificate_creation(csr, request.is_ca)
+            else:
+                logger.warning(
+                    "Certificate Request for relation ID %d was denied. Details in previous logs.",
+                    request.relation_id,
+                )
+
+    def _sync_certificate_revocation_requests(self):
+        """Handle certificate revocation requests.
+
+        Goes through all the outstanding revocation requests and
+        forwards them to the provider.
+        """
+        provider_certificates = self.certificates_requirers.get_certificates_for_which_no_csr_exists()
+        for provider_certificate in provider_certificates:
+            self.certificates_provider.request_certificate_revocation(provider_certificate.csr.encode())
+
+    def _sync_available_certificates(self):
+        """Handle certificate available.
+
+        Goes through all the certificates available and forwards them
+        to the appropriate requirer.
+        """
+        provider_certificates = self.certificates_provider.get_assigned_certificates()
+        for provider_certificate in provider_certificates:
+            relation_id = self._get_relation_id_for_csr(provider_certificate.csr)
+            if not relation_id:
+                logger.error(
+                    "Could not find the relation for CSR: %s.",
+                    provider_certificate.csr,
+                )
+                continue
+            self.certificates_requirers.set_relation_certificate(
+                certificate=provider_certificate.certificate,
+                certificate_signing_request=provider_certificate.csr,
+                ca=provider_certificate.ca,
+                chain=provider_certificate.chain,
+                relation_id=relation_id,
             )
 
-    def _on_certificate_revocation_request(self, event: CertificateRevocationRequestEvent) -> None:
-        """Handle certificate revocation request events.
-
-        In the unlikely case a TLS provider is not integrated to this charm,
-        the status will be blocked, and this event will be ignored.
-        Otherwise, forward the revocation request to the provider.
-
-        Args:
-            event (CertificateRevocationRequestEvent): Event containing the request
-
-        Returns:
-            None
-        """
-        if not self.model.get_relation(RELATION_NAME_TO_TLS_PROVIDER):
-            self.unit.status = BlockedStatus("Need a relation to a TLS certificates provider")
-            return
-        self.certificates_provider.request_certificate_revocation(
-            event.certificate_signing_request.encode()
-        )
-
-    def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:
-        """Handle certificate available events.
-
-        Find the relation ID matching the CSR and forward the received
-        certificate to that relation.
-        If a relation ID is not found, log an error and ignores the event.
-
-        Args:
-            event (CertificateAvailableEvent): Event containing the certificate
-
-        Returns:
-            None
-        """
-        relation_id = self._get_relation_id_for_csr(event.certificate_signing_request)
-        if not relation_id:
-            logger.error(
-                "Could not find the relation for CSR: %s.",
-                event.certificate_signing_request,
-            )
-            return
-        self.certificates_requirers.set_relation_certificate(
-            certificate=event.certificate,
-            certificate_signing_request=event.certificate_signing_request,
-            ca=event.ca,
-            chain=event.chain,
-            relation_id=relation_id,
-        )
-
-    def _on_certificate_invalidated(self, event: CertificateInvalidatedEvent) -> None:
-        """Handle certificate invalidated events.
-
-        If the certificate is invalidated because it expired, ignore the event
-        and let the requirer handle it properly. Otherwise, calls the TLS
-        library to revoke the certificate to the requirer.
-
-        Args:
-            event (CertificateInvalidatedEvent): Event for invalidated certificate
-
-        Returns:
-            None
-        """
-        if event.reason == "expired":
-            return
-        self.certificates_requirers.remove_certificate(event.certificate)
-
-    def _on_all_certificates_invalidated(self, event: AllCertificatesInvalidatedEvent) -> None:
-        """Handle all certificates invalidated events.
-
-        Revokes all certificates.
-
-        Args:
-            event (AllCertificatesInvalidatedEvent): Event for all certificates invalidated
-
-        Returns:
-            None
-        """
-        self.certificates_requirers.revoke_all_certificates()
+    def _sync_invalidated_certificates(self):
+        provider_certificates = self.certificates_provider.get_assigned_certificates()
+        for provider_certificate in provider_certificates:
+            relation_id = self._get_relation_id_for_csr(provider_certificate.csr)
+            if not relation_id:
+                logger.error(
+                    "Could not find the relation for CSR: %s.",
+                    provider_certificate.csr,
+                )
+                continue
+            if provider_certificate.revoked:
+                self.certificates_requirers.remove_certificate(
+                    certificate=provider_certificate.certificate,
+                )
 
     def _get_relation_id_for_csr(self, csr: str) -> Optional[int]:
         """Find the relation ID that sent the provided CSR.

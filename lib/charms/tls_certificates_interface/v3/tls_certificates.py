@@ -1448,18 +1448,29 @@ class TLSCertificatesProvidesV3(Object):
         Returns:
             None
         """
-        provider_certificates = self.get_provider_certificates(relation_id)
-        requirer_csrs = self.get_requirer_csrs(relation_id)
+        provider_certificates = self.get_certificates_for_which_no_csr_exists(relation_id=relation_id)
+        for provider_certificate in provider_certificates:
+            self.on.certificate_revocation_request.emit(
+                certificate=provider_certificate.certificate,
+                certificate_signing_request=provider_certificate.csr,
+                ca=provider_certificate.ca,
+                chain=provider_certificate.chain,
+            )
+            self.remove_certificate(certificate=provider_certificate.certificate)
+
+    def get_certificates_for_which_no_csr_exists(self, relation_id: Optional[int] = None) -> List[ProviderCertificate]:
+        """Return provider certificates for which no certificate requests exists.
+
+        Those certificates should be revoked. 
+        """
+        csrs: List[RequirerCSR] = []
+        provider_certificates = self.get_provider_certificates(relation_id=relation_id)
+        requirer_csrs = self.get_requirer_csrs(relation_id=relation_id)
         list_of_csrs = [csr.csr for csr in requirer_csrs]
         for certificate in provider_certificates:
             if certificate.csr not in list_of_csrs:
-                self.on.certificate_revocation_request.emit(
-                    certificate=certificate.certificate,
-                    certificate_signing_request=certificate.csr,
-                    ca=certificate.ca,
-                    chain=certificate.chain,
-                )
-                self.remove_certificate(certificate=certificate.certificate)
+                csrs.append(certificate)
+        return csrs
 
     def get_outstanding_certificate_requests(
         self, relation_id: Optional[int] = None
