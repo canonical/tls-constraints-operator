@@ -325,9 +325,13 @@ class TLSConstraintsCharm(CharmBase):
         Goes through all the outstanding revocation requests and
         forwards them to the provider.
         """
-        provider_certificates = self.certificates_requirers.get_certificates_for_which_no_csr_exists()
+        provider_certificates = (
+            self.certificates_requirers.get_certificates_for_which_no_csr_exists()
+        )
         for provider_certificate in provider_certificates:
-            self.certificates_provider.request_certificate_revocation(provider_certificate.csr.encode())
+            self.certificates_provider.request_certificate_revocation(
+                provider_certificate.csr.encode()
+            )
 
     def _sync_available_certificates(self):
         """Handle certificate available.
