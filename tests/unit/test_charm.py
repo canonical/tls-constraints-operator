@@ -52,8 +52,8 @@ class TestCharm:
         f"{TLS_LIB_PATH}.TLSCertificatesProvidesV3.get_requirer_csrs"
     )
 
-    patcher_tls_provides_get_certificates_for_which_no_csr_exists = patch(
-        f"{TLS_LIB_PATH}.TLSCertificatesProvidesV3.get_certificates_for_which_no_csr_exists"
+    patcher_tls_provides_get_unsolicited_certificates = patch(
+        f"{TLS_LIB_PATH}.TLSCertificatesProvidesV3.get_unsolicited_certificates"
     )
     patcher_tls_provides_set_relation_certificate = patch(
         f"{TLS_LIB_PATH}.TLSCertificatesProvidesV3.set_relation_certificate"
@@ -94,8 +94,8 @@ class TestCharm:
         self.mock_tls_provides_get_requirer_csrs = (
             self.patcher_tls_provides_get_requirer_csrs.start()
         )
-        self.mock_tls_provides_get_certificates_for_which_no_csr_exists = (
-            self.patcher_tls_provides_get_certificates_for_which_no_csr_exists.start()
+        self.mock_tls_provides_get_unsolicited_certificates = (
+            self.patcher_tls_provides_get_unsolicited_certificates.start()
         )
         self.mock_tls_provides_set_relation_certificate = (
             self.patcher_tls_provides_set_relation_certificate.start()
@@ -146,7 +146,7 @@ class TestCharm:
     def test_given_certificate_for_which_no_csr_exists_when_configure_then_revocation_is_forwarded_to_provider(  # noqa: E501
         self,
     ) -> None:
-        self.mock_tls_provides_get_certificates_for_which_no_csr_exists.return_value = [
+        self.mock_tls_provides_get_unsolicited_certificates.return_value = [
             ProviderCertificate(
                 relation_id=1,
                 application_name="certificates-provider",
