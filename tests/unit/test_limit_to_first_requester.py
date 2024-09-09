@@ -3,12 +3,13 @@
 from random import choice
 
 import pytest
-from charm import LimitToFirstRequester
 from charms.tls_certificates_interface.v3.tls_certificates import (
     RequirerCSR,
     generate_csr,
     generate_private_key,
 )
+
+from charm import LimitToFirstRequester
 
 MY_RELATION_ID = 1
 OTHER_RELATION_ID = 2
