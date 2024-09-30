@@ -16,6 +16,7 @@ APPLICATION_NAME = METADATA["name"]
 
 TLS_PROVIDER_CHARM_NAME = "self-signed-certificates"
 TLS_REQUIRER_CHARM_NAME = "tls-certificates-requirer"
+TLS_REQUIRER_CHARM_REVISION = 93
 TLS_REQUIRER1 = f"{TLS_REQUIRER_CHARM_NAME}1"
 TLS_REQUIRER2 = f"{TLS_REQUIRER_CHARM_NAME}2"
 TLS_REQUIRER3 = f"{TLS_REQUIRER_CHARM_NAME}3"
@@ -39,27 +40,32 @@ async def deploy(ops_test: OpsTest, request):
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER1,
         channel="stable",
+        revision=TLS_REQUIRER_CHARM_REVISION,
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER2,
         channel="stable",
+        revision=TLS_REQUIRER_CHARM_REVISION,
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER3,
         channel="stable",
+        revision=TLS_REQUIRER_CHARM_REVISION,
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER4,
         channel="stable",
+        revision=TLS_REQUIRER_CHARM_REVISION,
         config={"common_name": "reserved_name"},
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
         application_name=TLS_REQUIRER5,
         channel="stable",
+        revision=TLS_REQUIRER_CHARM_REVISION,
         config={"common_name": "reserved_name"},
     )
     await ops_test.model.deploy(
