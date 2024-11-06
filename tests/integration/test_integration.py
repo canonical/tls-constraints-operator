@@ -107,9 +107,7 @@ async def test_given_tls_requirer1_is_deployed_and_related_then_certificate_is_c
         timeout=1000,
     )
     action_output = await run_get_certificate_action(ops_test, TLS_REQUIRER1)
-    assert action_output["certificate"] is not None
-    assert action_output["ca-certificate"] is not None
-    assert action_output["csr"] is not None
+    assert action_output.get("certificates") is not None
 
 
 async def test_given_tls_requirer2_is_deployed_and_related_then_certificate_is_created_passed_correctly_and_different(  # noqa: E501
