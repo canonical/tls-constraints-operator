@@ -526,7 +526,7 @@ class CertificateAvailableEvent(EventBase):
 class CertificateExpiringEvent(EventBase):
     """Charm Event triggered when a TLS certificate is almost expired."""
 
-    def __init__(self, handle, certificate: str, expiry: str):
+    def __init__(self, handle: Handle, certificate: str, expiry: str):
         """CertificateExpiringEvent.
 
         Args:
