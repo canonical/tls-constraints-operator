@@ -27,10 +27,10 @@ RELATION_NAME_TO_TLS_PROVIDER = "certificates-upstream"
 
 
 @pytest.fixture(scope="module", autouse=True)
-async def deploy(ops_test: OpsTest, request):
+async def deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
     """Deploy charm-under-test."""
     assert ops_test.model
-    charm = Path(request.config.getoption("--charm_path")).resolve()
+    charm = Path(str(request.config.getoption("--charm_path"))).resolve()
     await ops_test.model.deploy(
         TLS_PROVIDER_CHARM_NAME,
         application_name=TLS_PROVIDER_CHARM_NAME,

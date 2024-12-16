@@ -215,7 +215,7 @@ class TestLimitToFirstRequester:
         ],
     )
     def test_given_previous_requesters_when_evaluate_csr_then_csr_is_allowed_or_denied(
-        self, csr, relation_id, expected
+        self, csr: bytes, relation_id: int, expected: bool
     ):
         filter = LimitToFirstRequester(allowed_csrs=ALLOWED_CSRS)
         assert filter.evaluate(csr, relation_id, REQUIRER_CSRS) is expected
@@ -250,7 +250,7 @@ class TestLimitToFirstRequester:
         ],
     )
     def test_given_previous_requesters_when_evaluate_csr_then_denials_are_logged(
-        self, csr, expected, caplog
+        self, csr: bytes, expected: str, caplog: pytest.LogCaptureFixture
     ):
         filter = LimitToFirstRequester(allowed_csrs=ALLOWED_CSRS)
         filter.evaluate(csr, MY_RELATION_ID, REQUIRER_CSRS)
@@ -258,7 +258,7 @@ class TestLimitToFirstRequester:
         assert ("WARNING", "charm", expected) in logs
 
     def test_given_previous_requesters_when_evaluate_csr_then_approvals_are_not_logged(
-        self, caplog
+        self, caplog: pytest.LogCaptureFixture
     ):
         filter = LimitToFirstRequester(allowed_csrs=[])
         filter.evaluate(CSR, MY_RELATION_ID, [])

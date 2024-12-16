@@ -10,7 +10,7 @@ Certificates are provided by the operator through Juju configs.
 import logging
 import re
 from itertools import chain
-from typing import Literal, Optional, Protocol
+from typing import Any, Literal, Optional, Protocol
 
 from charms.tls_certificates_interface.v3.tls_certificates import (
     RequirerCSR,
@@ -235,7 +235,7 @@ class AllowedFields:
 class TLSConstraintsCharm(CharmBase):
     """Main class to handle Juju events."""
 
-    def __init__(self, *args):
+    def __init__(self, *args: Any):
         """Set up charm integration handlers and observe Juju events."""
         super().__init__(*args)
         self.certificates_provider = TLSCertificatesRequiresV3(

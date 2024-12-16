@@ -70,7 +70,10 @@ class TestAllowedFields:
         ],
     )
     def test_given_allowlist_config_filter_when_invalid_csr_given_then_csr_filtered(
-        self, caplog: pytest.LogCaptureFixture, invalid_field, expected_log_message
+        self,
+        caplog: pytest.LogCaptureFixture,
+        invalid_field: dict[str, str],
+        expected_log_message: str,
     ) -> None:
         rules = {
             "allowed-dns": r"myapp-([0-9]+)?\.mycompany\.com",

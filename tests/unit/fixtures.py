@@ -40,7 +40,7 @@ class TLSConstraintsFixtures:
     )
 
     @pytest.fixture(autouse=True)
-    def setUp(self, request):
+    def setUp(self, request: pytest.FixtureRequest):
         self.mock_tls_requires_request_certificate_creation = (
             self.patcher_tls_requires_request_certificate_creation.start()
         )
