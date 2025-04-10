@@ -34,7 +34,7 @@ async def deploy(ops_test: OpsTest, request: pytest.FixtureRequest):
     await ops_test.model.deploy(
         TLS_PROVIDER_CHARM_NAME,
         application_name=TLS_PROVIDER_CHARM_NAME,
-        channel="stable",
+        channel="1/stable",
     )
     await ops_test.model.deploy(
         TLS_REQUIRER_CHARM_NAME,
