@@ -42,6 +42,8 @@ jobs:
       - unit-tests-with-coverage
       - integration-test
     if: ${{ github.ref_name == 'main' }}
+    permissions:
+      contents: write
     uses: canonical/identity-credentials-workflows/.github/workflows/publish-charm.yaml@v0
     secrets:
       CHARMCRAFT_AUTH: ${{ secrets.CHARMCRAFT_AUTH }}
